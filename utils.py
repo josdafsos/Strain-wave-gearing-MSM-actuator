@@ -5,7 +5,7 @@ import time
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 import pickle
-import keras
+# import keras
 
 NN_WORKING_FREQUENCY = 4000  # 4000 Hz, frequency with which control action is called. Previously tested with 20 kHz
 NN_WORKING_PERIOD = 1 / NN_WORKING_FREQUENCY  # seconds, period of calling control action

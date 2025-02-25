@@ -626,17 +626,17 @@ class MSM_Environment(gym.Env):
         plt.grid()
         plt.show()
 
-    def __init__(self, randomize_setpoint=True, return_observation_sequence=False):
+    def __init__(self, randomize_setpoint=True, return_observation_sequence=True):
         super().__init__()
 
-        self.observation_set_cnt = 5  # number of consecutive observation steps to be stuck together (minimum is 1)
+        self.observation_set_cnt = 10  # number of consecutive observation steps to be stuck together (minimum is 1)
         self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(1,), dtype=np.float32)
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(utils.features_cnt * self.observation_set_cnt,), dtype=np.float32)
         self.environment = MSMLinear(tb_type=1,
                                 controller_type="closed_loop")
 
         self.simulation_time = 0.05  # seconds
-        self.velocity_setpoint = 0.004
+        self.velocity_setpoint = 0.008
         self.velocity_setpoint_list = np.array([])
         self.randomize_setpoint = randomize_setpoint
         self.cur_step = 1
@@ -644,14 +644,19 @@ class MSM_Environment(gym.Env):
         self.return_observation_sequence = return_observation_sequence  # if True, obs matrix will be returned with sequence lengths equal to one defined in utils
         self.episode_reward_list = np.array([])
 
-
+        msg = ""
         if self.randomize_setpoint:
-            print("random setpoint option is set")
+            msg += "random setpoint option is set"
         else:
-            print(f"a constant setpoint will be used with value {self.velocity_setpoint}")
+            msg += f"a constant setpoint will be used with value {self.velocity_setpoint}"
+        if self.return_observation_sequence:
+            msg += f"; observation stack is used, stack value is {self.observation_set_cnt}"
+        else:
+            msg += "; Only last state is observed (no stacking)"
+        print(msg)
 
     def _get_observation(self):
-        if self.return_observation_sequence:
+        if not self.return_observation_sequence:
             obs = [
                 self.environment.simulation_data["rack_phase"][-utils.sequence_length:],
                 self.environment.simulation_data["rack_vel"][-utils.sequence_length:],
@@ -671,6 +676,7 @@ class MSM_Environment(gym.Env):
                                self.environment.simulation_data["error_derivative"][-i]
                                ]
                 obs.extend(sub_obs)
+            obs = np.transpose(np.array(obs))
         return obs
 
     def step(self, action):
@@ -680,7 +686,7 @@ class MSM_Environment(gym.Env):
         observation = self._get_observation()
         # reward = -(self.velocity_setpoint - self.environment.simulation_data["rack_vel"][-1]) ** 2
         reward = -( ((self.velocity_setpoint - self.environment.simulation_data["rack_vel"][-1]) * 1000) **2 ) \
-                 * (0.1 + abs(float(action)))
+                 * (0.1 + abs(float(action)) * 2)
 
         # in gym truncated is responsible for termination based on the time steps limit.
         # But since there is no other termination option in MSM sim (termination based on rack flying away is too rare), using termination flag is reasonable here

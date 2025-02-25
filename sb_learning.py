@@ -1,9 +1,8 @@
 import numpy as np
 from torch.utils.checkpoint import checkpoint
 
-import custom_matlab_env
 import msm_model
-from sb3_contrib import RecurrentPPO
+from sb3_contrib import RecurrentPPO, ARS
 from stable_baselines3 import PPO, SAC
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecMonitor
 from stable_baselines3.common import results_plotter
@@ -68,10 +67,15 @@ if __name__ == '__main__':
 
     test_model = False
     model_name = ""  # leave empty if a new model must be trained
-    model_name = "5000000_network_02_19_25_"
-    device = 'cpu'
+    #model_name = "SAC_67500000_steps_0_08_setpoint"
+
+    device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
+    print(f"Current device: {device}")
 
     log_dir = 'logs'
+    learning_rate = 5e-4
+    # TODO add action noise to parametrs if it is possible with PPO
+
 
     # path = os.path.join('sb_neural_networks', 'sb_neural_network')
     # env = msm_model.MSM_Environment()  # randomize_setpoint=False
@@ -82,15 +86,19 @@ if __name__ == '__main__':
     # )
 
     policy_kwargs = dict(
-        net_arch=dict(pi=[512, 512, 512],
-                      vf=[512, 512, 512]),  # hidden layers with VALUE neurons each
+#        net_arch=dict(pi=[512, 512, 512],
+#                      vf=[512, 512, 512]),  # hidden layers with VALUE neurons each
+        net_arch=dict(pi=[256, 256],
+                      vf=[256, 256]),  # hidden layers with VALUE neurons each
         #activation_fn=torch.nn.ReLU
         activation_fn = torch.nn.ELU
     )
 
     if test_model:
         #model = RecurrentPPO.load(os.path.join('sb_neural_networks', model_name))
-        model = PPO.load(os.path.join('sb_neural_networks', model_name))
+        #model = PPO.load(os.path.join('sb_neural_networks', model_name))
+        model = SAC.load(os.path.join('sb_neural_networks', model_name))
+        # model = ARS.load(os.path.join('sb_neural_networks', model_name))
 
         viewer = mujoco_viewer.MujocoViewer(env.environment.model, env.environment.data)
         viewer.cam.azimuth = 180
@@ -116,30 +124,39 @@ if __name__ == '__main__':
         num_envs = 30  # Number of parallel environments
         vec_env = SubprocVecEnv([make_env for _ in range(num_envs)])  # Or use DummyVecEnv([make_env])
         vec_env = VecMonitor(vec_env)
-        timesteps = int(5e6)
+        timesteps = int(1e8)
         if num_envs == 1:
             vec_env = env
-        # Instantiate the agent
-        #model = PPO('MlpLstmPolicy', vec_env, learning_rate=1e-3, verbose=1)  # n_steps=10 for rollout. n_step also define minum lear steps
+
         if model_name == "":
             print("creating new model")
-            # model = RecurrentPPO("MlpLstmPolicy",
-            #                      vec_env,
-            #                      learning_rate=1e-3,
-            #                      verbose=1)
-            model = PPO("MlpPolicy",
+            # model = RecurrentPPO("MlpLstmPolicy", vec_env, learning_rate=1e-3, verbose=1)  # instead use normal PPO with frame stacking
+            # model = ARS("MlpPolicy",
+            #             vec_env,
+            #             device=device,
+            #             learning_rate=learning_rate,
+            #             #1policy_kwargs=policy_kwargs,
+            #             verbose=1)
+            #model = PPO("MlpPolicy",
+            #            vec_env,
+            #            device=device,
+            #            learning_rate=learning_rate,
+            #            policy_kwargs=policy_kwargs,
+            #            batch_size=256,
+            #            n_steps=4096,
+            #            verbose=1)
+            model = SAC("MlpPolicy",
                         vec_env,
                         device=device,
-                        learning_rate=3e-4,
-                        policy_kwargs=policy_kwargs,
-                        batch_size=256,
-                        n_steps=4096,
-                        verbose=1) # ,
-            #model = PPO("MlpPolicy", vec_env, policy_kwargs=policy_kwargs, learning_rate=1e-4, verbose=1)
+                        learning_rate=learning_rate,
+                        #policy_kwargs=policy_kwargs,
+                        batch_size=64,
+                        verbose=1)
         else:
             print("Loading model for training")
-            model = PPO.load(os.path.join('sb_neural_networks', model_name))
-            #model = PPO.load(os.path.join('sb_neural_networks', model_name))
+            custom_objects = {'learning_rate': learning_rate}
+            # model = PPO.load(os.path.join('sb_neural_networks', model_name), custom_objects=custom_objects)
+            model = SAC.load(os.path.join('sb_neural_networks', model_name), custom_objects=custom_objects)
 
             model.set_env(vec_env)
 
