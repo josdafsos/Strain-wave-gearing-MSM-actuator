@@ -64,12 +64,16 @@ def plot_rewards_history(vec_env):
 if __name__ == '__main__':
 
     # TODO plot reward history
+    # TODO optimize simulation for tooth plates to check contact only with the rack, not with each other
 
     test_model = False
     model_name = ""  # leave empty if a new model must be trained
     #model_name = "SAC_67500000_steps_0_08_setpoint"
-
-    device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
+    if hasattr(torch, 'accelerator') and torch.accelerator.is_available():
+        device = torch.accelerator.current_accelerator().type
+    else:
+        device = 'cpu'
+    #device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
     print(f"Current device: {device}")
 
     log_dir = 'logs'
@@ -121,7 +125,7 @@ if __name__ == '__main__':
     else:
 
         # Vectorized environment setup
-        num_envs = 30  # Number of parallel environments
+        num_envs = 2  # Number of parallel environments
         vec_env = SubprocVecEnv([make_env for _ in range(num_envs)])  # Or use DummyVecEnv([make_env])
         vec_env = VecMonitor(vec_env)
         timesteps = int(1e8)
@@ -163,6 +167,7 @@ if __name__ == '__main__':
         #model.save(os.path.join('sb_neural_networks', "original_" + network_name))
         #model = SAC('MlpPolicy', env, learning_rate=1e-3, verbose=1)
         # Train the agent
+        print(model.policy)
         model.learn(total_timesteps=timesteps,
                     progress_bar=True,
                     callback=checkpoint_callback
@@ -176,7 +181,7 @@ if __name__ == '__main__':
         model.save(os.path.join('sb_neural_networks', model_name))
 
         plot_rewards_history(vec_env)
-
+        print(model.policy)
 
 
         # print(utils.reward_list)

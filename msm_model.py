@@ -732,6 +732,56 @@ class MSM_Environment(gym.Env):
         print('close function was called')
         #sim_plant.SimPool.delete_instance(self.plant)
 
+class MSMSimPool:
+    pool_state_list = []
+    use_separate_matlab_simulation_file = False
+
+    @staticmethod
+    def initialize(debug_mode=None):
+        idx = None
+        if MSMSimPool.use_separate_matlab_simulation_file:
+            idx = len(MSMSimPool.pool_state_list) + 1
+        instance = MSM_Environment(randomize_setpoint=False)
+        state_dict = {"instance": instance, "is_available": True}
+        MSMSimPool.pool_state_list.append(state_dict)
+
+    @staticmethod
+    def get_instance():
+        # check if there is no available instance
+        available_list = [x for x in MSMSimPool.pool_state_list if x["is_available"]]
+        if len(available_list) == 0:
+            MSMSimPool.initialize()
+            MSMSimPool.pool_state_list[-1]["is_available"] = False
+            print('New SimPlant instance required, updated total number of instances: ', len(MSMSimPool.pool_state_list))
+            return MSMSimPool.pool_state_list[-1]["instance"]
+        else:
+            available_list[0]["is_available"] = False
+            return available_list[0]["instance"]
+
+    @staticmethod
+    def delete_instance(instance):
+        # deletes the instance from pool, reducing the pool size
+        for i in range(len(MSMSimPool.pool_state_list)):
+            if instance == MSMSimPool.pool_state_list[i]["instance"]:
+                del MSMSimPool.pool_state_list[i]
+                print('A SimPlant instance was deleted from the pool, updated total number of instances: ',
+                      len(MSMSimPool.pool_state_list))
+                return
+
+        print("Error, the instance to be cleared is not found in the SimPool")
+
+
+    @staticmethod
+    def release_instance(instance):
+        # thorws an error if the instance is not in the list
+        for i in range(len(MSMSimPool.pool_state_list)):
+            if instance == MSMSimPool.pool_state_list[i]["instance"]:
+                #instance.clear()
+                MSMSimPool.pool_state_list[i]["is_available"] = True
+                return
+
+        print("Error, the instance to be cleared is not found in the SimPool")
+
 
 
 if __name__ == '__main__':
