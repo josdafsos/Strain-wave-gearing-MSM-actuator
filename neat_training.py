@@ -6,6 +6,7 @@ import neat
 import msm_model
 from datetime import datetime
 import numpy as np
+import utils
 
 runs_per_net = 1
 
@@ -55,6 +56,8 @@ def run(folder_name, new_training, checkpoint_name=""):
         pop = neat.Population(config)
     else:
         pop = neat.Checkpointer.restore_checkpoint(os.path.join(save_folder_name, checkpoint_name))
+        config.species_set_config.max_stagnation = 200
+        pop.config = config
 
     model_save_prefix = os.path.join(folder_name, "checkpoint-")
     checkpointer = neat.Checkpointer(generation_interval=10, filename_prefix=model_save_prefix)
@@ -86,9 +89,9 @@ def run(folder_name, new_training, checkpoint_name=""):
 
 
 if __name__ == '__main__':
-    save_folder_name = "neat_training"
+    save_folder_name = utils.NEAT_FOLDER
     new_training = False
-    run(save_folder_name, new_training, checkpoint_name="checkpoint-5")
+    run(save_folder_name, new_training, checkpoint_name="checkpoint-2001 fitness -5776Backup")
 
 
 

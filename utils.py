@@ -16,7 +16,7 @@ NN_WORKING_PERIOD = 1 / NN_WORKING_FREQUENCY  # seconds, period of calling contr
 feature_columns = ['mod_rack_position', 'rack_velocity', 'tahn_rack_acceleration',
                        'desired_velocity']
 feature_columns_extended = ['mod_rack_position', 'rack_velocity', 'tahn_rack_acceleration',
-                       'desired_velocity', 'error_integral', 'error_derivative']
+                       'desired_velocity', 'error_integral', 'error_derivative', 'is_max_teeth_engaged']
 #features_cnt = len(feature_columns)
 features_cnt = len(feature_columns_extended)
 sequence_length = 25
@@ -66,6 +66,10 @@ MAX_BLOCKING_OUTPUT_VALUE = 0.5  # maximum control value applied to the blocking
 
 # metrics
 reward_list = np.array([])
+
+# --- folder names ---
+NEAT_FOLDER = "neat_training"
+
 
 def get_pid_data(sequence_length, num_files, print_time=False, folder= 'processed_data'):
     """

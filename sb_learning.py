@@ -63,12 +63,10 @@ def plot_rewards_history(vec_env):
 
 if __name__ == '__main__':
 
-    # TODO plot reward history
-    # TODO optimize simulation for tooth plates to check contact only with the rack, not with each other
+    # TODO try TD3 (or an older version DDPG)
 
-    test_model = False
     model_name = ""  # leave empty if a new model must be trained
-    #model_name = "SAC_67500000_steps_0_08_setpoint"
+    #model_name = "FIRST_SUCCESS_SAC_7500000_steps_0_08_setpoint"
     if hasattr(torch, 'accelerator') and torch.accelerator.is_available():
         device = torch.accelerator.current_accelerator().type
     else:
@@ -77,114 +75,84 @@ if __name__ == '__main__':
     print(f"Current device: {device}")
 
     log_dir = 'logs'
-    learning_rate = 5e-4
+    learning_rate = 1e-9  # 1e-9 not yet tested; 1e-8 not working well
     # TODO add action noise to parametrs if it is possible with PPO
 
 
     # path = os.path.join('sb_neural_networks', 'sb_neural_network')
     # env = msm_model.MSM_Environment()  # randomize_setpoint=False
     env = make_env()
-    # policy_kwargs = dict(
-    #     net_arch=[256, 256, 512],  # hidden layers with VALUE neurons each
-    #     activation_fn=torch.nn.ReLU
-    # )
 
     policy_kwargs = dict(
 #        net_arch=dict(pi=[512, 512, 512],
 #                      vf=[512, 512, 512]),  # hidden layers with VALUE neurons each
         net_arch=dict(pi=[256, 256],
-                      vf=[256, 256]),  # hidden layers with VALUE neurons each
+                      # vf=[256]),
+                      qf=[256]),  # hidden layers with VALUE neurons each  # TODO try one hidden layer for critic
         #activation_fn=torch.nn.ReLU
         activation_fn = torch.nn.ELU
     )
 
-    if test_model:
-        #model = RecurrentPPO.load(os.path.join('sb_neural_networks', model_name))
-        #model = PPO.load(os.path.join('sb_neural_networks', model_name))
-        model = SAC.load(os.path.join('sb_neural_networks', model_name))
-        # model = ARS.load(os.path.join('sb_neural_networks', model_name))
 
-        viewer = mujoco_viewer.MujocoViewer(env.environment.model, env.environment.data)
-        viewer.cam.azimuth = 180
-        viewer.cam.distance = 0.005
+    # Vectorized environment setup
+    num_envs = 30  # Number of parallel environments
+    vec_env = SubprocVecEnv([make_env for _ in range(num_envs)])  # Or use DummyVecEnv([make_env])
+    vec_env = VecMonitor(vec_env)
+    timesteps = int(3e6)
+    if num_envs == 1:
+        vec_env = env
 
-        obs, _ = env.reset()
-        # env.velocity_setpoint = 0.006  # if not set explicitly the default constant setpoint will be used
-
-        while viewer.is_alive:
-            action, _states = model.predict(obs)
-            observation, reward, terminated, truncated, info = env.step(action)
-            #env.render("human")
-            viewer.render()
-        viewer.close()
-
-        env.environment.plot_rack_instant_velocity()
-        env.environment.plot_rack_average_velocity()
-        env.environment.plot_control_value()
-
+    if model_name == "":
+        print("creating new model")
+        # model = RecurrentPPO("MlpLstmPolicy", vec_env, learning_rate=1e-3, verbose=1)  # instead use normal PPO with frame stacking
+        # model = ARS("MlpPolicy",
+        #             vec_env,
+        #             device=device,
+        #             learning_rate=learning_rate,
+        #             #1policy_kwargs=policy_kwargs,
+        #             verbose=1)
+        #model = PPO("MlpPolicy",
+        #            vec_env,
+        #            device=device,
+        #            learning_rate=learning_rate,
+        #            policy_kwargs=policy_kwargs,
+        #            batch_size=256,
+        #            n_steps=4096,
+        #            verbose=1)
+        model = SAC("MlpPolicy",
+                    vec_env,
+                    device=device,
+                    learning_rate=learning_rate,
+                    policy_kwargs=policy_kwargs,
+                    batch_size=64,
+                    verbose=1)
     else:
+        print("Loading model for training")
+        custom_objects = {'learning_rate': learning_rate}
+        # model = PPO.load(os.path.join('sb_neural_networks', model_name), custom_objects=custom_objects)
+        model = SAC.load(os.path.join('sb_neural_networks', model_name), vec_env, custom_objects=custom_objects)
+        model.set_env(vec_env)
 
-        # Vectorized environment setup
-        num_envs = 2  # Number of parallel environments
-        vec_env = SubprocVecEnv([make_env for _ in range(num_envs)])  # Or use DummyVecEnv([make_env])
-        vec_env = VecMonitor(vec_env)
-        timesteps = int(1e8)
-        if num_envs == 1:
-            vec_env = env
+    # Train the agent
+    print(model.policy)
+    model.learn(total_timesteps=timesteps,
+                progress_bar=True,
+                callback=checkpoint_callback,
+                reset_num_timesteps=False
+                #callback=RewardLoggerCallback()
+                )
+    # Save the agent
+    if model_name == "":
+        model_name = f"{timesteps}_network_" + datetime.now().strftime("%D_").replace("/", "_")
+    else:
+        model_name = model_name + "_new"
+    model.save(os.path.join('sb_neural_networks', model_name))
 
-        if model_name == "":
-            print("creating new model")
-            # model = RecurrentPPO("MlpLstmPolicy", vec_env, learning_rate=1e-3, verbose=1)  # instead use normal PPO with frame stacking
-            # model = ARS("MlpPolicy",
-            #             vec_env,
-            #             device=device,
-            #             learning_rate=learning_rate,
-            #             #1policy_kwargs=policy_kwargs,
-            #             verbose=1)
-            #model = PPO("MlpPolicy",
-            #            vec_env,
-            #            device=device,
-            #            learning_rate=learning_rate,
-            #            policy_kwargs=policy_kwargs,
-            #            batch_size=256,
-            #            n_steps=4096,
-            #            verbose=1)
-            model = SAC("MlpPolicy",
-                        vec_env,
-                        device=device,
-                        learning_rate=learning_rate,
-                        #policy_kwargs=policy_kwargs,
-                        batch_size=64,
-                        verbose=1)
-        else:
-            print("Loading model for training")
-            custom_objects = {'learning_rate': learning_rate}
-            # model = PPO.load(os.path.join('sb_neural_networks', model_name), custom_objects=custom_objects)
-            model = SAC.load(os.path.join('sb_neural_networks', model_name), custom_objects=custom_objects)
-
-            model.set_env(vec_env)
-
-        #model.save(os.path.join('sb_neural_networks', "original_" + network_name))
-        #model = SAC('MlpPolicy', env, learning_rate=1e-3, verbose=1)
-        # Train the agent
-        print(model.policy)
-        model.learn(total_timesteps=timesteps,
-                    progress_bar=True,
-                    callback=checkpoint_callback
-                    #callback=RewardLoggerCallback()
-                    )
-        # Save the agent
-        if model_name == "":
-            model_name = f"{timesteps}_network_" + datetime.now().strftime("%D_").replace("/", "_")
-        else:
-            model_name = model_name + "_new"
-        model.save(os.path.join('sb_neural_networks', model_name))
-
-        plot_rewards_history(vec_env)
-        print(model.policy)
+    plot_rewards_history(vec_env)
+    print(model.policy)
 
 
-        # print(utils.reward_list)
-        # msm_model.MSM_Environment.plot_expected_reward_history(utils.reward_list)
+    # print(utils.reward_list)
+    # msm_model.MSM_Environment.plot_expected_reward_history(utils.reward_list)
 
 

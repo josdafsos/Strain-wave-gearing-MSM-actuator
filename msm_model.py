@@ -23,6 +23,8 @@ class MSMLinear():
             :param steps_per_call defines amount of simulation steps per on step function call.
             :param control_on_callback if True mujoco callback will be used to process control actions (faster), otherwise control will be called explicitly
             By default computes the step count to match controller frequency
+            :param create_new_tooth_mesh if True generates a new tooth mesh and saves it to a file. Otherwise loads a mesh from file.
+            Only needed when the tooth profile is changed
     """
     def __init__(self,
                  tooth_type="force_optimal",
@@ -30,7 +32,8 @@ class MSMLinear():
                  tb_type=1,
                  controller_type="closed_loop",
                  steps_per_call=None,
-                 control_on_callback=False):
+                 control_on_callback=False,
+                 create_new_tooth_mesh=False):
 
         self.tb_type = tb_type
         self.tooth_type = tooth_type
@@ -57,6 +60,7 @@ class MSMLinear():
         self.control_value = 1
         self.enable_blocking = False  # if true the unactuated teeth will still engage the rack if pid value is low
         self.output_vector = np.zeros(self.msm_elements_cnt)  # vector of currently active msm elements with actuation value
+        self.currently_actuated_teeth_cnt = 0
 
         # ---- other ----
         self.simulation_data = {}
@@ -69,7 +73,7 @@ class MSMLinear():
         self.teeth_matrix, self.tooth_profile_mat = self._generate_tooth()
 
         self.root, self.worldbody, self.asset, self.option, self.default, self.actuator = None, None, None, None, None, None
-        self.xml_model = self._generate_xml_model()
+        self.xml_model = self._generate_xml_model(create_new_tooth_mesh)
         self.model = mujoco.MjModel.from_xml_string(self.xml_model)
         self.data = mujoco.MjData(self.model)
 
@@ -95,7 +99,7 @@ class MSMLinear():
         else:
             raise 'Unknown Twin boundary type, only values of 1 or 2 are possible'
 
-    def _generate_xml_model(self):
+    def _generate_xml_model(self, create_new_tooth_mesh):
         if MSMLinear.xml_model is not None:
             return MSMLinear.xml_model
 
@@ -133,7 +137,7 @@ class MSMLinear():
                                    quat="0.707 0 0.707 0", size="10 10 10", rgba="1 1 1 1")
 
         self._generate_linear_rack()
-        self._generate_tooth_plates_mesh()
+        self._generate_tooth_plates_mesh(save_mesh=create_new_tooth_mesh)
 
         # Add a custom camera, axisangle last value in degs
         ET.SubElement(self.worldbody, "camera", name="custom_cam2", fovy="0.01", pos="12 0.002 0.0005", quat="0.5 0.5 0.5 0.5")  # axisangle="0 1 0 90" - for vertical rack
@@ -221,8 +225,8 @@ class MSMLinear():
                 "pos": pos,  # minimum working size="0.000015"
                 "rgba": "1 0.3 0.3 1",
                 "mass": str(sphere_mass),
-                "contype": "1",  # Enable collision
-                "conaffinity": "1",  # Respond to collisions
+                "contype": "4",  # Enable collision, default 1, must be 2 for better performance
+                "conaffinity": "0",  # Respond to collisions, default 1, must be 4 for better performance
             })
 
         # Rack actuator is to apply useful load
@@ -233,7 +237,7 @@ class MSMLinear():
             self.useful_load = useful_load
         self.data.ctrl[self.rack_actuator_id] = self.useful_load
 
-    def _generate_tooth_plates_mesh(self):
+    def _generate_tooth_plates_mesh(self, save_mesh=False):
         tooth_plate_width = 0.001
         vertices = np.zeros((2 * self.tooth_profile_mat.shape[0], 3))
         vertices[::2] = self.tooth_profile_mat
@@ -254,10 +258,11 @@ class MSMLinear():
         tooth_file_name = "tooth_mesh.obj"
 
         # Save the mesh to an OBJ file
-        plane_mesh.export(tooth_file_name)
-        plane_mesh.update_faces(plane_mesh.unique_faces())
-        plane_mesh.remove_unreferenced_vertices()
-        plane_mesh.fix_normals()
+        if save_mesh:
+            plane_mesh.export(tooth_file_name)
+            plane_mesh.update_faces(plane_mesh.unique_faces())
+            plane_mesh.remove_unreferenced_vertices()
+            plane_mesh.fix_normals()
 
         ET.SubElement(self.asset, "mesh", {
             "name": "tooth_plate_mesh",
@@ -278,7 +283,7 @@ class MSMLinear():
                 "mesh": "tooth_plate_mesh",
                 "size": "1 1 1",  # Scaling factor
                 "contype": "1",  # Enable collision
-                "conaffinity": "1",  # Respond to collisions
+                "conaffinity": "4",  # Respond to collisions  # default 1, must be 2 for better performance
                 "rgba": "0 1 0 1",
                 "mass": str(utils.tooth_plate_mass)
             })
@@ -417,6 +422,7 @@ class MSMLinear():
         self.output_vector = np.zeros(self.msm_elements_cnt)
         self.output_vector[next_active_vec] = self.control_value
         self.output_vector[currently_active] = self.control_value
+        self.currently_actuated_teeth_cnt = 1 + len(next_active_vec)  # one is added because one at least one tooth is always engaged
 
         # TODO this part of algorithm is implemented currently only in one direction
         # Engaging inactive teeth if control value is to low (to prevent rack from sliding away)
@@ -486,6 +492,10 @@ class MSMLinear():
                       - self.rack_init_pos + 100 * self.tooth_pitch)
         rack_phase, _ = math.modf(abs(rack_phase) / self.tooth_pitch)
         self.simulation_data["rack_phase"] = np.append(self.simulation_data["rack_phase"], rack_phase)
+        is_max_teeth_engaged = 1 - (self.msm_elements_cnt // 2 - self.currently_actuated_teeth_cnt)  # integer value, 1 if max possible number of teeth is engaged, 0 ozerwise
+        self.simulation_data["is_max_teeth_engaged"] = np.append(self.simulation_data["is_max_teeth_engaged"],
+                                                                 is_max_teeth_engaged)
+
 
     def collect_velocity_setpoint(self, velocity_setpoint):
         self.simulation_data["velocity_setpoint"] = np.append(self.simulation_data["velocity_setpoint"], velocity_setpoint)
@@ -540,6 +550,7 @@ class MSMLinear():
             "velocity_setpoint": np.zeros(utils.sequence_length),
             "error_integral": np.zeros(utils.sequence_length),
             "error_derivative": np.zeros(utils.sequence_length),
+            "is_max_teeth_engaged": np.zeros(utils.sequence_length),  # integer value, 1 if max possible number of teeth is engaged, 0 ozerwise
         }
         self._collect_controller_data()
 
@@ -626,7 +637,15 @@ class MSM_Environment(gym.Env):
         plt.grid()
         plt.show()
 
-    def __init__(self, randomize_setpoint=True, return_observation_sequence=True):
+    def __init__(self, randomize_setpoint=True, return_observation_sequence=True, random_setpoint_limits=None):
+        """
+
+        :param randomize_setpoint: if True a setpoint will be a random value in reachable velocity space.
+        A new setpoint value is set after reset() function call
+        :param return_observation_sequence: If True a stacked frame of observations is returned
+        :param random_setpoint_limits: Tuple specifying minimum and maximum values of that a random setpoint can have.
+        random_setpoint_limits = (min_value, max_value). If none then reachable setpoint space will be used
+        """
         super().__init__()
 
         self.observation_set_cnt = 10  # number of consecutive observation steps to be stuck together (minimum is 1)
@@ -639,6 +658,7 @@ class MSM_Environment(gym.Env):
         self.velocity_setpoint = 0.008
         self.velocity_setpoint_list = np.array([])
         self.randomize_setpoint = randomize_setpoint
+        self.random_setpoint_limits = random_setpoint_limits
         self.cur_step = 1
         self.total_reward = 0
         self.return_observation_sequence = return_observation_sequence  # if True, obs matrix will be returned with sequence lengths equal to one defined in utils
@@ -646,7 +666,9 @@ class MSM_Environment(gym.Env):
 
         msg = ""
         if self.randomize_setpoint:
-            msg += "random setpoint option is set"
+            if self.random_setpoint_limits is None:
+                self.random_setpoint_limits = (0.002, 0.015)
+            msg += f"random setpoint option is set, setpoint range [{self.random_setpoint_limits[0]}, {self.random_setpoint_limits[1]}] m/s"
         else:
             msg += f"a constant setpoint will be used with value {self.velocity_setpoint}"
         if self.return_observation_sequence:
@@ -673,7 +695,8 @@ class MSM_Environment(gym.Env):
                                self.environment.simulation_data["rack_tanh_acc"][-i],
                                self.environment.simulation_data["velocity_setpoint"][-i],
                                self.environment.simulation_data["error_integral"][-i],
-                               self.environment.simulation_data["error_derivative"][-i]
+                               self.environment.simulation_data["error_derivative"][-i],
+                               self.environment.simulation_data["is_max_teeth_engaged"][-i],
                                ]
                 obs.extend(sub_obs)
             obs = np.transpose(np.array(obs))
@@ -684,9 +707,13 @@ class MSM_Environment(gym.Env):
         self.environment.sim_step(action)
         self.environment.collect_velocity_setpoint(self.velocity_setpoint)  # duplicating self.velocity_setpoint_list
         observation = self._get_observation()
+        dv = self.velocity_setpoint - self.environment.simulation_data["rack_vel"][-1]
+        reward = max(1 / (0.1 + abs(dv)) - 9.8, 0)  # reward will be zero if abs(dv) is greater than 0.002. Max rew/step 0.2
+        # old rewards:
         # reward = -(self.velocity_setpoint - self.environment.simulation_data["rack_vel"][-1]) ** 2
-        reward = -( ((self.velocity_setpoint - self.environment.simulation_data["rack_vel"][-1]) * 1000) **2 ) \
-                 * (0.1 + abs(float(action)) * 2)
+        # reward = -( ((self.velocity_setpoint - self.environment.simulation_data["rack_vel"][-1]) * 1000) **2 )  # \
+                 #* (0.1 + abs(float(action)) * 2)
+
 
         # in gym truncated is responsible for termination based on the time steps limit.
         # But since there is no other termination option in MSM sim (termination based on rack flying away is too rare), using termination flag is reasonable here
@@ -710,7 +737,10 @@ class MSM_Environment(gym.Env):
         self.environment.reset()
         info = {}
         if self.randomize_setpoint:
-            self.velocity_setpoint = random.random() * 0.013 + 0.002
+            # self.velocity_setpoint = random.random() * 0.013 + 0.002
+            setpoint_range = self.random_setpoint_limits[1] - self.random_setpoint_limits[0]
+            self.velocity_setpoint = random.random() * setpoint_range + self.random_setpoint_limits[0]
+
         observation = self._get_observation()
         self.environment.collect_velocity_setpoint(self.velocity_setpoint)  # duplicating self.velocity_setpoint_list
         # self.velocity_setpoint_list = np.zeros(utils.sequence_length)
@@ -737,7 +767,7 @@ class MSMSimPool:
     use_separate_matlab_simulation_file = False
 
     @staticmethod
-    def initialize(debug_mode=None):
+    def initialize():
         idx = None
         if MSMSimPool.use_separate_matlab_simulation_file:
             idx = len(MSMSimPool.pool_state_list) + 1
