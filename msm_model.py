@@ -190,14 +190,14 @@ class MSMLinear():
 
         teeth_mat = grid_mat.copy()
         tooth_cnt = 10
-        for i in range(-10, tooth_cnt):
+        for i in range(-12, tooth_cnt):  # negative value is teeth count towards motion direction. Positive value - teeth count on the opposite side
             tmp_mat = grid_mat.copy()
             tmp_mat[:, 1] = tmp_mat[:, 1] + self.tooth_pitch * i
             teeth_mat = np.vstack((teeth_mat, tmp_mat))
 
         return teeth_mat, grid_mat
 
-    def _generate_linear_rack(self):  # TODO add friction to the rack, friction computation settings must be set correctly
+    def _generate_linear_rack(self):
         # rack with teeth
         rack = ET.SubElement(self.worldbody, "body", name="rack", pos="0 0 0")
 
@@ -637,44 +637,70 @@ class MSM_Environment(gym.Env):
         plt.grid()
         plt.show()
 
-    def __init__(self, randomize_setpoint=True, return_observation_sequence=True, random_setpoint_limits=None):
+    def __init__(self,
+                 return_observation_sequence: bool = True,
+                 setpoint_limits: float | tuple[float, float] | None = 0.008,
+                 force_limits: float | tuple[float, float] = 2.0,
+                 simulation_time: float = 0.05,
+                 action_discretization_cnt: int = None):
         """
 
-        :param randomize_setpoint: if True a setpoint will be a random value in reachable velocity space.
-        A new setpoint value is set after reset() function call
         :param return_observation_sequence: If True a stacked frame of observations is returned
-        :param random_setpoint_limits: Tuple specifying minimum and maximum values of that a random setpoint can have.
-        random_setpoint_limits = (min_value, max_value). If none then reachable setpoint space will be used
+        :param setpoint_limits If float is given then the setpoint is always fixed and equals to the given value.
+        If tuple is given then setpoint is set randomly on reset to be in given range (min_value, max_value).
+        If None is given the setpoint value is set randomly on reset to be in the reachable velocity range.
+        :param force_limits: Defines value to act as external force onto rack, Newtons.
+        If float value is give, the force will be fixed for all the simulations.
+        If tuple (min_value, max_value) is given, then force will be selected randomly from the given range on each reset() call.
+        :param simulation_time duration of the simulation in seconds
+        :param action_discretization_cnt if None, continuous space is used. Otherwise, a discrete space is used,
+        with available number of action equal to the parameter value. Action space will be linearly split in range [0, 1]
         """
         super().__init__()
 
+        self.action_discretization_cnt = action_discretization_cnt
+        if action_discretization_cnt is None:
+            self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(1,), dtype=np.float32)
+        else:
+            self.action_space = spaces.Discrete(action_discretization_cnt)
+            self.discrete_action_mapping = np.linspace(0, 1, action_discretization_cnt)
+
         self.observation_set_cnt = 10  # number of consecutive observation steps to be stuck together (minimum is 1)
-        self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(1,), dtype=np.float32)
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(utils.features_cnt * self.observation_set_cnt,), dtype=np.float32)
         self.environment = MSMLinear(tb_type=1,
-                                controller_type="closed_loop")
+                                     controller_type="closed_loop")
 
-        self.simulation_time = 0.05  # seconds
-        self.velocity_setpoint = 0.008
-        self.velocity_setpoint_list = np.array([])
-        self.randomize_setpoint = randomize_setpoint
-        self.random_setpoint_limits = random_setpoint_limits
+        self.simulation_time = simulation_time  # seconds
         self.cur_step = 1
         self.total_reward = 0
         self.return_observation_sequence = return_observation_sequence  # if True, obs matrix will be returned with sequence lengths equal to one defined in utils
         self.episode_reward_list = np.array([])
 
+        self.velocity_setpoint_list = np.array([])
+        self.setpoint_limits = setpoint_limits
         msg = ""
-        if self.randomize_setpoint:
-            if self.random_setpoint_limits is None:
-                self.random_setpoint_limits = (0.002, 0.015)
-            msg += f"random setpoint option is set, setpoint range [{self.random_setpoint_limits[0]}, {self.random_setpoint_limits[1]}] m/s"
+        if not isinstance(self.setpoint_limits, float):
+            self.randomize_setpoint = True
+            if self.setpoint_limits is None:
+                self.setpoint_limits = (0.001, 0.014)
+            self.velocity_setpoint = None
+            msg += f"random setpoint option is set, setpoint range [{self.setpoint_limits[0]}, {self.setpoint_limits[1]}] m/s"
         else:
+            self.randomize_setpoint = False
+            self.velocity_setpoint = self.setpoint_limits
             msg += f"a constant setpoint will be used with value {self.velocity_setpoint}"
         if self.return_observation_sequence:
             msg += f"; observation stack is used, stack value is {self.observation_set_cnt}"
         else:
             msg += "; Only last state is observed (no stacking)"
+
+        self.force_limits = force_limits
+        if not isinstance(self.force_limits, float):
+            self.randomize_force = True
+            msg += f"; Random setpoint option is set, setpoint range [{self.force_limits[0]}, {self.force_limits[1]}] N"
+        else:
+            self.randomize_force = False
+            msg += f"; A constant force will be used with value {self.force_limits} N"
         print(msg)
 
     def _get_observation(self):
@@ -696,14 +722,18 @@ class MSM_Environment(gym.Env):
                                self.environment.simulation_data["velocity_setpoint"][-i],
                                self.environment.simulation_data["error_integral"][-i],
                                self.environment.simulation_data["error_derivative"][-i],
-                               self.environment.simulation_data["is_max_teeth_engaged"][-i],
+                               # self.environment.simulation_data["is_max_teeth_engaged"][-i],
                                ]
+                if utils.features_cnt > 6:
+                    sub_obs.append(self.environment.simulation_data["is_max_teeth_engaged"][-i])
                 obs.extend(sub_obs)
             obs = np.transpose(np.array(obs))
         return obs
 
     def step(self, action):
         info = {}
+        if self.action_discretization_cnt is not None:  # if discrete actions used, action input is index
+            action = self.discrete_action_mapping[action]
         self.environment.sim_step(action)
         self.environment.collect_velocity_setpoint(self.velocity_setpoint)  # duplicating self.velocity_setpoint_list
         observation = self._get_observation()
@@ -733,18 +763,19 @@ class MSM_Environment(gym.Env):
         return observation, reward, terminated, truncated, info
 
     def reset(self, seed=None, options=None):
-        # print("reset function is called")
         self.environment.reset()
         info = {}
         if self.randomize_setpoint:
-            # self.velocity_setpoint = random.random() * 0.013 + 0.002
-            setpoint_range = self.random_setpoint_limits[1] - self.random_setpoint_limits[0]
-            self.velocity_setpoint = random.random() * setpoint_range + self.random_setpoint_limits[0]
+            setpoint_range = self.setpoint_limits[1] - self.setpoint_limits[0]
+            self.velocity_setpoint = random.random() * setpoint_range + self.setpoint_limits[0]
+
+        if self.randomize_force:
+            force_range = self.force_limits[1] - self.force_limits[0]
+            force_setpoint = random.random() * force_range + self.force_limits[0]
+            self.environment.set_rack_load(force_setpoint)
 
         observation = self._get_observation()
         self.environment.collect_velocity_setpoint(self.velocity_setpoint)  # duplicating self.velocity_setpoint_list
-        # self.velocity_setpoint_list = np.zeros(utils.sequence_length)
-        # self.velocity_setpoint_list = np.append(self.velocity_setpoint_list, self.velocity_setpoint)
 
         avg_reward = self.total_reward / self.cur_step
 
@@ -764,23 +795,29 @@ class MSM_Environment(gym.Env):
 
 class MSMSimPool:
     pool_state_list = []
-    use_separate_matlab_simulation_file = False
 
     @staticmethod
-    def initialize():
-        idx = None
-        if MSMSimPool.use_separate_matlab_simulation_file:
-            idx = len(MSMSimPool.pool_state_list) + 1
-        instance = MSM_Environment(randomize_setpoint=False)
+    def _initialize(init_function):
+        if init_function is None:
+            instance = MSM_Environment()
+            print("default initialization function is used")
+        else:
+            instance = init_function()
+            print("custom initialization function is used")
         state_dict = {"instance": instance, "is_available": True}
         MSMSimPool.pool_state_list.append(state_dict)
 
     @staticmethod
-    def get_instance():
+    def get_instance(init_func=None):
+        """
+        Returns an instance from pool.
+        :param init_func: If no instances are available creates a new instance with specified initialization function
+        :return:
+        """
         # check if there is no available instance
         available_list = [x for x in MSMSimPool.pool_state_list if x["is_available"]]
         if len(available_list) == 0:
-            MSMSimPool.initialize()
+            MSMSimPool._initialize(init_func)
             MSMSimPool.pool_state_list[-1]["is_available"] = False
             print('New SimPlant instance required, updated total number of instances: ', len(MSMSimPool.pool_state_list))
             return MSMSimPool.pool_state_list[-1]["instance"]

@@ -4,11 +4,13 @@ import pickle
 
 import neat
 import msm_model
-from datetime import datetime
 import numpy as np
 import utils
 
 runs_per_net = 1
+
+def make_env(action_discretization_cnt=None):
+    return msm_model.MSM_Environment(setpoint_limits=0.008, simulation_time=0.10, action_discretization_cnt=action_discretization_cnt)
 
 
 # Use the NN network phenotype and the discrete actuator force function.
@@ -16,7 +18,7 @@ def eval_genome(genome, config):
     net = neat.nn.FeedForwardNetwork.create(genome, config)
 
     fitness_list = []
-    env = msm_model.MSMSimPool.get_instance()
+    env = msm_model.MSMSimPool.get_instance(make_env)
 
     for i in range(runs_per_net):
         obs, _ = env.reset()
@@ -28,14 +30,14 @@ def eval_genome(genome, config):
             obs, reward, terminated, truncated, info = env.step(prediction[0])
             done = terminated or truncated
             total_reward += reward
-        fitness_list.append(total_reward)
+        mean_run_reward = total_reward / env.cur_step  # normalizing reward in case of variable training duration
+        fitness_list.append(mean_run_reward)
 
     msm_model.MSMSimPool.release_instance(env)
     fitness = np.min(fitness_list)
-    str_exec_info = ' mean fitness: ' + str(fitness) + ', date: ' + datetime.now().strftime("%d/%model/%Y %H:%M:%S")
 
     # The genome's fitness is its worst performance across all runs.
-    return fitness
+    return float(fitness)
 
 
 def eval_genomes(genomes, config):
@@ -56,15 +58,15 @@ def run(folder_name, new_training, checkpoint_name=""):
         pop = neat.Population(config)
     else:
         pop = neat.Checkpointer.restore_checkpoint(os.path.join(save_folder_name, checkpoint_name))
-        config.species_set_config.max_stagnation = 200
-        pop.config = config
+        #config.species_set_config.max_stagnation = 200
+        #pop.config = config  # this line does not allow normal intializtion and training. It results in error after two or three generations
 
     model_save_prefix = os.path.join(folder_name, "checkpoint-")
     checkpointer = neat.Checkpointer(generation_interval=10, filename_prefix=model_save_prefix)
 
     stats = neat.StatisticsReporter()
     pop.add_reporter(stats)
-    pop.add_reporter(neat.StdOutReporter(True))
+    pop.add_reporter(neat.StdOutReporter(False))
     pop.add_reporter(checkpointer)
 
     pe = neat.ParallelEvaluator(8, eval_genome)  # multiprocessing.cpu_count()
@@ -90,7 +92,7 @@ def run(folder_name, new_training, checkpoint_name=""):
 
 if __name__ == '__main__':
     save_folder_name = utils.NEAT_FOLDER
-    new_training = False
+    new_training = True
     run(save_folder_name, new_training, checkpoint_name="checkpoint-2001 fitness -5776Backup")
 
 

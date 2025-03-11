@@ -4,13 +4,13 @@
 # or the experiment itself.  This is the only required section.
 [NEAT]
 fitness_criterion     = max
-fitness_threshold     = -500.0
-pop_size              = 500
+fitness_threshold     = 9999999
+pop_size              = 1000
 reset_on_extinction   = 0
 
 [DefaultGenome]
-num_inputs              = 60
-num_hidden              = 2
+num_inputs              = 70
+num_hidden              = 20
 num_outputs             = 1
 initial_connection      = partial_direct 0.5
 feed_forward            = False
@@ -21,10 +21,10 @@ conn_delete_prob        = 0.2
 node_add_prob           = 0.3
 node_delete_prob        = 0.2
 activation_default      = random
-activation_options      = sigmoid tanh abs sin cube elu
+activation_options      = sigmoid tanh abs sin cube relu gauss exp square log
 activation_mutate_rate  = 0.1
-aggregation_default     = sum
-aggregation_options     = sum
+aggregation_default     = random
+aggregation_options     = sum product min max mean
 aggregation_mutate_rate = 0.1
 bias_init_mean          = 0.1
 bias_init_stdev         = 1.0
@@ -34,10 +34,10 @@ bias_mutate_power       = 0.5
 bias_max_value          = 300.0
 bias_min_value          = -300.0
 response_init_mean      = 1.0
-response_init_stdev     = 0.0
-response_replace_rate   = 0.0
-response_mutate_rate    = 0.0
-response_mutate_power   = 0.0
+response_init_stdev     = 0.1
+response_replace_rate   = 0.05
+response_mutate_rate    = 0.05
+response_mutate_power   = 0.05
 response_max_value      = 30.0
 response_min_value      = -30.0
 

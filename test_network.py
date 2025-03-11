@@ -3,29 +3,29 @@ import pickle
 
 import neat
 from simple_pid import PID
-from stable_baselines3 import SAC
+from stable_baselines3 import SAC, DQN
 #import visualize
 import msm_model
 import mujoco_viewer
 import neat_training
 import utils
 import time
+import numpy as np
 
 import matplotlib.pyplot as plt
 
-def make_env():
-    return msm_model.MSM_Environment(randomize_setpoint=False)
 
-def show_plots(environment, enable_plots):
-    if not enable_plots:
-        return
-    environment.environment.plot_rack_instant_velocity()
-    environment.environment.plot_rack_average_velocity()
-    environment.environment.plot_control_value()
+def make_env(action_discretization_cnt=None):
+    return msm_model.MSM_Environment(setpoint_limits=0.014, simulation_time=0.30, action_discretization_cnt=action_discretization_cnt)
 
-def run_sim(model, predict_func, render_environment):
-    env = make_env()
+
+def run_sim(model, predict_func, model_params, render_environment, enable_plots):
+    if model_params[0] == "dqn":
+        env = make_env(action_discretization_cnt=20)
+    else:
+        env = make_env()
     obs, _ = env.reset()
+    result = {}
 
     if render_environment:
         viewer = mujoco_viewer.MujocoViewer(env.environment.model, env.environment.data)
@@ -46,14 +46,32 @@ def run_sim(model, predict_func, render_environment):
     if render_environment:
         viewer.close()
 
-    return env
+    if len(model_params) > 2:
+        label = model_params[0] + " " + model_params[2]
+    else:
+        label = model_params[0]
+    steady_state_idx = int(0.02 / utils.NN_WORKING_FREQUENCY)
+    steady_state_vel = env.environment.simulation_data["rack_vel"][steady_state_idx:]
+    steady_state_desired_vel = env.environment.simulation_data["velocity_setpoint"][
+                               steady_state_idx:]
+    control_error = np.sum((steady_state_vel - steady_state_desired_vel) ** 2)
+    print(f"{label} steady state mse {control_error}")
+    result["velocity mse"] = control_error
+
+    if enable_plots:
+        env.environment.plot_rack_instant_velocity()
+        env.environment.plot_rack_average_velocity()
+        env.environment.plot_control_value()
 
 
-def run_neat(model_name, render_environment=True, enable_plots=False):
+    return env, result
+
+
+def run_neat(model_params, render_environment=True, enable_plots=False):
     print("running neat")
     save_prefix = 'neatsave_'
     save_prefix_len = len(save_prefix) - 1
-
+    model_name = model_params[1]
     if len(model_name) < save_prefix_len or model_name[:save_prefix_len] != save_prefix[:-1]:
         save_name = os.path.join(utils.NEAT_FOLDER, save_prefix + model_name)
         pop = neat.Checkpointer.restore_checkpoint(os.path.join(utils.NEAT_FOLDER, model_name))
@@ -80,8 +98,8 @@ def run_neat(model_name, render_environment=True, enable_plots=False):
         action = action[0]
         return action
 
-    env = run_sim(net, predict_func, render_environment)
-    show_plots(env, enable_plots)
+    env = run_sim(net, predict_func, model_params, render_environment, enable_plots)
+
 
     # visualize.draw_net(config, winner, True, node_names=node_names)
     #
@@ -92,7 +110,7 @@ def run_neat(model_name, render_environment=True, enable_plots=False):
     return env
 
 
-def run_pid(model_name, render_environment=True, enable_plots=False):
+def run_pid(model_params, render_environment=True, enable_plots=False):
     print("running pid")
     pid = PID(6, 20000, 8e-5)  # PID(6, 20000, 8e-5)
     pid.sample_time = utils.NN_WORKING_PERIOD
@@ -105,59 +123,85 @@ def run_pid(model_name, render_environment=True, enable_plots=False):
         action = model(control_error, dt=utils.NN_WORKING_PERIOD)
         return action
 
-    env = run_sim(pid, predict_func, render_environment)
-
-    show_plots(env, enable_plots)
+    env = run_sim(pid, predict_func, model_params, render_environment, enable_plots)
 
     return env
 
 
-def run_sac(model_name, render_environment=True, enable_plots=False):
+def run_sac(model_params, render_environment=True, enable_plots=False):
     print("running sac")
-    model = SAC.load(os.path.join('sb_neural_networks', model_name))
+    model_name = model_params[1]
+    model = SAC.load(os.path.join('sb_neural_networks', "sac", model_name))
 
     def predict_func(model, env, obs):
         action, _states = model.predict(obs)
         return action
 
-    env = run_sim(model, predict_func, render_environment)
-    show_plots(env, enable_plots)
+    env = run_sim(model, predict_func, model_params, render_environment, enable_plots)
+
+    return env
+
+def run_dqn(model_params, render_environment=True, enable_plots=False):
+    print("running sac")
+    model_name = model_params[1]
+    model = DQN.load(os.path.join('sb_neural_networks', "dqn", model_name))
+
+    def predict_func(model, env, obs):
+        action, _states = model.predict(obs)
+        return action
+
+    env = run_sim(model, predict_func, model_params, render_environment, enable_plots)
 
     return env
 
 if __name__ == '__main__':
     # network types: # "neat" "sac" "ppo" "pid"
-    networks = []  # list of tuples with (network type, filename)
-    networks.append(("neat", "checkpoint-6490_fitness_around_8500_stepoint_[0_007__0_009]"))
+    networks = []  # list of tuples with (network type, filename, <optional> name prefix)
+    #networks.append(("neat", "neatsave_5kHz_70_obs_4_01_fitness_0_06_seconds_checkpoint-2932", "4.01 fit"))
+    networks.append(("neat", "neatsave_5khz_70obs_4_02_fitness_0_06_seconds_checkpoint-2750", "4.02_fit"))
     # networks.append(("sac", "1000000_network_03_07_25_"))
-    #networks.append(("pid", ""))
+    # networks.append(("dqn", "1000000_network_03_10_25_"))
+    networks.append(("pid", ""))
+    plot_comparisons = True
 
     network_dict = {
         "neat": run_neat,
         "pid": run_pid,
         "sac": run_sac,
+        "dqn": run_dqn,
     }
-    processed_environments = []
+    processed_environments, results = [], []
     execution_time = time.time()
     for network in networks:
-        processed_environments.append(network_dict[network[0]](network[1],
-                                                               render_environment=True,
-                                                               enable_plots=True))
+        processed_env, result = network_dict[network[0]](network,
+                                 render_environment=True,
+                                 enable_plots=False)
+        processed_environments.append(processed_env)
+        results.append(result)
     execution_time = time.time() - execution_time
     print(f"All simulations completed in {execution_time} seconds")
-
-    plt.figure(figsize=(8, 4))
-    for i in range(len(networks)):
-        time_vec = processed_environments[i].environment.simulation_data["time"][1:]
-        instant_vel_vec = processed_environments[i].environment.simulation_data["rack_vel"][1:]
-        desired_vel_vec = processed_environments[i].environment.simulation_data["velocity_setpoint"][1:]
-        # Plot results
-        plt.plot(time_vec, instant_vel_vec, label=networks[i][0] + " Rack Velocity, m/s")
-        if len(desired_vel_vec) > utils.sequence_length and i == 0:
-            plt.plot(time_vec, desired_vel_vec, label="Desired Velocity, m/s")
-    plt.xlabel("Time (s)")
-    plt.ylabel("Instant Velocity")
-    plt.title("Instant velocity Over Time")
-    plt.legend()
-    plt.grid()
-    plt.show()
+    if plot_comparisons:
+        plt.figure(figsize=(8, 4))
+        for i in range(len(networks)):
+            time_vec = processed_environments[i].environment.simulation_data["time"][1:]
+            instant_vel_vec = processed_environments[i].environment.simulation_data["rack_vel"][1:]
+            desired_vel_vec = processed_environments[i].environment.simulation_data["velocity_setpoint"][1:]
+            # Plot results
+            if len(networks[i]) > 2:
+                plot_label = networks[i][0] + " " + networks[i][2]
+            else:
+                plot_label = networks[i][0]
+            plt.plot(time_vec, instant_vel_vec, label=plot_label + " Rack Velocity, m/s")
+            if len(desired_vel_vec) > utils.sequence_length and i == 0:
+                plt.plot(time_vec, desired_vel_vec, label="Desired Velocity, m/s")
+            steady_state_idx = int(0.02 / utils.NN_WORKING_FREQUENCY)
+            steady_state_vel = processed_environments[i].environment.simulation_data["rack_vel"][steady_state_idx:]
+            steady_state_desired_vel = processed_environments[i].environment.simulation_data["velocity_setpoint"][steady_state_idx:]
+            control_error = np.sum((steady_state_vel - steady_state_desired_vel)**2)
+            #print(f"{plot_label} steady state mse {control_error}")
+        plt.xlabel("Time (s)")
+        plt.ylabel("Instant Velocity")
+        plt.title("Instant velocity Over Time")
+        plt.legend()
+        plt.grid()
+        plt.show()
