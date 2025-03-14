@@ -12,6 +12,7 @@ import mujoco_viewer
 import torch
 from datetime import datetime
 import matplotlib.pyplot as plt
+import gymnasium as gym
 
 
 import utils
@@ -33,7 +34,8 @@ class RewardLoggerCallback(BaseCallback):
 def make_env():
     global reward_log_list, log_dir
     # if Monitor class is used, access environment via env.get_env()
-    return msm_model.MSM_Environment() #, action_discretization_cnt=20)
+    # return gym.make('CartPole-v1')
+    return msm_model.MSM_Environment(simulation_time=0.03, action_discretization_cnt=20)
     # return Monitor(msm_model.MSM_Environment(randomize_setpoint=True), log_dir)
 
 def plot_rewards_history(vec_env):
@@ -58,7 +60,7 @@ def plot_rewards_history(vec_env):
 
 def get_dqn_model(model_name, vec_env, device, learning_rate):
     policy_kwargs = dict(
-        net_arch=[128, 128],  # hidden layers with VALUE neurons each
+        net_arch=[256, 256],  # hidden layers with VALUE neurons each
         # activation_fn=torch.nn.ReLU
         activation_fn=torch.nn.ELU
     )
@@ -66,12 +68,13 @@ def get_dqn_model(model_name, vec_env, device, learning_rate):
     if model_name == "":
         print("creating new DQN model")
         model = DQN("MlpPolicy",
-                   vec_env,
-                   device=device,
-                   learning_rate=learning_rate,
-                   policy_kwargs=policy_kwargs,
-                   batch_size=32,
-                   verbose=1)
+                    vec_env,
+                    device=device,
+                    learning_rate=learning_rate,
+                    policy_kwargs=policy_kwargs,
+                    gradient_steps=-1,  #-1,  # suggested by Ming, default 1
+                    batch_size=256,
+                    verbose=1,)
     else:
         print("Loading DQN model for training")
         custom_objects = {'learning_rate': learning_rate}
@@ -155,17 +158,18 @@ def get_td3_model(model_name, vec_env, device, learning_rate):
 if __name__ == '__main__':
 
     # TODO try TD3 (or an older version DDPG)
+    # TODO try TRPO
     # TODO at a new tooth engagement, there is an unrealistic oscillations. Try to adjust sim parameters to avoid this effect
 
     model_name = ""  # leave empty if a new model must be trained
-    #model_name = "4000000_network_03_10_25"
-    model_type = "td3"  # sac, ppo, dqn
+    # model_name = "4000000_network_03_10_25"
+    model_type = "dqn"  # sac, ppo,
 
     model_dict = {
-        "sac": get_sac_model,
+        "sac": get_sac_model,  # difficult to train, possible to reach controllability with relatively high error
         "ppo": get_ppo_model,
-        "dqn": get_dqn_model,
-        "td3": get_td3_model,
+        "dqn": get_dqn_model,  # dqn (can control with relatively high error)
+        "td3": get_td3_model,  # td3 (does not learn)
     }
 
     if hasattr(torch, 'accelerator') and torch.accelerator.is_available():
@@ -176,13 +180,13 @@ if __name__ == '__main__':
     print(f"Current device: {device}")
 
     log_dir = 'logs'
-    learning_rate = 1e-12  # 1e-9 not yet tested; 1e-8 not working well
+    learning_rate = 1e-4  # 1e-9 not yet tested; 1e-8 not working well
     # TODO add action noise to parametrs if it is possible with a policy
 
     env = make_env()
 
     # Vectorized environment setup
-    num_envs = 30  # Number of parallel environments
+    num_envs = 20  # Number of parallel environments
     vec_env = SubprocVecEnv([make_env for _ in range(num_envs)])  # Or use DummyVecEnv([make_env])
     vec_env = VecMonitor(vec_env)
     timesteps = int(1e6)
@@ -191,20 +195,16 @@ if __name__ == '__main__':
     """
     if model_name == "":
         # model = RecurrentPPO("MlpLstmPolicy", vec_env, learning_rate=1e-3, verbose=1)  # instead use normal PPO with frame stacking
-        # model = ARS("MlpPolicy",
-        #             vec_env,
-        #             device=device,
-        #             learning_rate=learning_rate,
-        #             #1policy_kwargs=policy_kwargs,
-        #             verbose=1)
+        # model = ARS("MlpPolicy", vec_env, device=device,learning_rate=learning_rate, policy_kwargs=policy_kwargs, verbose=1)
     """
 
     model = model_dict[model_type](model_name, vec_env, device, learning_rate)
 
+    obs_cnt = env.total_obs_cnt
     checkpoint_callback = CheckpointCallback(
-        save_freq=int(5e4),
+        save_freq=int(2e4),
         save_path='./sb_neural_networks/' + model_type + '/',  # './sb_neural_networks/3_512_layers_with_5_sets/'
-        name_prefix='3_512_layers'
+        name_prefix=f"{model_type}_{obs_cnt}_obs_{utils.NN_WORKING_FREQUENCY}_Hz_freq"
     )
 
     # Train the agent
@@ -217,7 +217,7 @@ if __name__ == '__main__':
                 )
     # Save the agent
     if model_name == "":
-        model_name = f"{timesteps}_network_" + datetime.now().strftime("%D_").replace("/", "_")
+        model_name = f"{model_type}_{obs_cnt}_obs_{utils.NN_WORKING_FREQUENCY}_Hz_freq_{timesteps}_network_" + datetime.now().strftime("%D_").replace("/", "_")
     else:
         model_name = model_name + "_new"
     model.save(os.path.join('sb_neural_networks', model_type, model_name))

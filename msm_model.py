@@ -382,6 +382,7 @@ class MSMLinear():
                       + 100 * self.tooth_pitch)
         cur_cycle, _ = math.modf(abs(cur_offset) / self.tooth_pitch)
         engagement_range = self.t_b / self.tooth_pitch + self.t_a / self.tooth_pitch - self.tooth_disengage_offset
+        self.currently_actuated_teeth_cnt = 0
         for i in range(self.msm_elements_cnt):
             top_switch_threshold = i / self.msm_elements_cnt
             low_switch_threshold = top_switch_threshold - engagement_range
@@ -392,37 +393,11 @@ class MSMLinear():
             if (low_switch_threshold < cur_cycle < top_switch_threshold) \
                     or (low_switch_threshold < 0 and 1 + low_switch_threshold < cur_cycle < 1 + top_switch_threshold):
                 self.output_vector[i] = self.control_value
+                self.currently_actuated_teeth_cnt += 1
             else:
                 self.output_vector[i] = 0
 
-        # TODO this part of algorithm is implemented currently only in one direction
-        # Engaging inactive teeth if control value is to low (to prevent rack from sliding away)
-        if self.enable_blocking and self.control_value < utils.CONTROL_VALUE_BLOCKING_LIMIT:
-            blocking_value = ((utils.CONTROL_VALUE_BLOCKING_LIMIT - self.control_value) *
-                              utils.MAX_BLOCKING_OUTPUT_VALUE / utils.CONTROL_VALUE_BLOCKING_LIMIT)
-            self.output_vector[self.output_vector < 1e-3] = blocking_value
-
-        return
-        # --- old algorithm ---
-        currently_active = 0
-        for i in range(1, self.msm_elements_cnt):
-            cur_offset = (self.data.qpos[self.rack_joint_id]  # rack current pos - rack initial pos
-                          - self.rack_init_pos + (1 - self.feedback_threshold) * self.tooth_pitch  # second term is for modifying the engagement timing
-                          + 100*self.tooth_pitch)  # third term is to make sure the difference between first terms is always positive (not the best way to implement it
-            cur_cycle, _ = math.modf(abs(cur_offset) / self.tooth_pitch)
-            # switch_threshold = (i - (1 - self.feedback_threshold)) / self.msm_elements_cnt  # the substraction is to eliminate dead points
-            switch_threshold = i / self.msm_elements_cnt  # the substraction is to eliminate dead points
-            if cur_cycle < switch_threshold:
-                currently_active = i
-                break
-
-        next_active_vec = self._get_following_active_vec(currently_active,
-                                                         contact_ratio=self.contact_ratio,  # CR is considered
-                                                         fraction=self.new_tooth_engagement_offset)
-        self.output_vector = np.zeros(self.msm_elements_cnt)
-        self.output_vector[next_active_vec] = self.control_value
-        self.output_vector[currently_active] = self.control_value
-        self.currently_actuated_teeth_cnt = 1 + len(next_active_vec)  # one is added because one at least one tooth is always engaged
+        self.currently_actuated_teeth_cnt -= 1
 
         # TODO this part of algorithm is implemented currently only in one direction
         # Engaging inactive teeth if control value is to low (to prevent rack from sliding away)
@@ -492,9 +467,9 @@ class MSMLinear():
                       - self.rack_init_pos + 100 * self.tooth_pitch)
         rack_phase, _ = math.modf(abs(rack_phase) / self.tooth_pitch)
         self.simulation_data["rack_phase"] = np.append(self.simulation_data["rack_phase"], rack_phase)
-        is_max_teeth_engaged = 1 - (self.msm_elements_cnt // 2 - self.currently_actuated_teeth_cnt)  # integer value, 1 if max possible number of teeth is engaged, 0 ozerwise
+        # is_max_teeth_engaged = 1 - (self.msm_elements_cnt // 2 - self.currently_actuated_teeth_cnt)  # integer value, 1 if max possible number of teeth is engaged, 0 ozerwise
         self.simulation_data["is_max_teeth_engaged"] = np.append(self.simulation_data["is_max_teeth_engaged"],
-                                                                 is_max_teeth_engaged)
+                                                                 self.currently_actuated_teeth_cnt)
 
 
     def collect_velocity_setpoint(self, velocity_setpoint):
@@ -666,7 +641,8 @@ class MSM_Environment(gym.Env):
             self.discrete_action_mapping = np.linspace(0, 1, action_discretization_cnt)
 
         self.observation_set_cnt = 10  # number of consecutive observation steps to be stuck together (minimum is 1)
-        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(utils.features_cnt * self.observation_set_cnt,), dtype=np.float32)
+        self.total_obs_cnt = utils.features_cnt * self.observation_set_cnt
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(self.total_obs_cnt,), dtype=np.float32)
         self.environment = MSMLinear(tb_type=1,
                                      controller_type="closed_loop")
 
@@ -678,6 +654,7 @@ class MSM_Environment(gym.Env):
 
         self.velocity_setpoint_list = np.array([])
         self.setpoint_limits = setpoint_limits
+
         msg = ""
         if not isinstance(self.setpoint_limits, float):
             self.randomize_setpoint = True
@@ -689,10 +666,12 @@ class MSM_Environment(gym.Env):
             self.randomize_setpoint = False
             self.velocity_setpoint = self.setpoint_limits
             msg += f"a constant setpoint will be used with value {self.velocity_setpoint}"
+
         if self.return_observation_sequence:
             msg += f"; observation stack is used, stack value is {self.observation_set_cnt}"
         else:
             msg += "; Only last state is observed (no stacking)"
+        msg += f"; Total observations: {self.total_obs_cnt}"
 
         self.force_limits = force_limits
         if not isinstance(self.force_limits, float):
@@ -715,19 +694,12 @@ class MSM_Environment(gym.Env):
         else:
             obs = []
             for i in range(1, self.observation_set_cnt + 1):
-                sub_obs = [
-                               self.environment.simulation_data["rack_phase"][-i],
-                               self.environment.simulation_data["rack_vel"][-i],
-                               self.environment.simulation_data["rack_tanh_acc"][-i],
-                               self.environment.simulation_data["velocity_setpoint"][-i],
-                               self.environment.simulation_data["error_integral"][-i],
-                               self.environment.simulation_data["error_derivative"][-i],
-                               # self.environment.simulation_data["is_max_teeth_engaged"][-i],
-                               ]
-                if utils.features_cnt > 6:
-                    sub_obs.append(self.environment.simulation_data["is_max_teeth_engaged"][-i])
+                sub_obs = []
+                for feature_name in utils.feature_columns_extended:
+                    sub_obs.append(self.environment.simulation_data[feature_name][-i])
                 obs.extend(sub_obs)
             obs = np.transpose(np.array(obs))
+        # print(obs)  # obs
         return obs
 
     def step(self, action):
