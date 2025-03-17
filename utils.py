@@ -16,7 +16,7 @@ NN_WORKING_PERIOD = 1 / NN_WORKING_FREQUENCY  # seconds, period of calling contr
 feature_columns = ['mod_rack_position', 'rack_velocity', 'tahn_rack_acceleration',
                        'desired_velocity']
 feature_columns_extended = ['rack_phase', 'rack_vel', 'rack_tanh_acc', 'velocity_setpoint',
-                            'error_integral', 'error_derivative', 'is_max_teeth_engaged']
+                           'error_integral', 'error_derivative', 'is_max_teeth_engaged']
 # feature_columns_extended = ['mod_rack_position', 'rack_velocity', 'tahn_rack_acceleration',
 #                        'desired_velocity', 'error_integral', 'error_derivative', 'is_max_teeth_engaged']
 #features_cnt = len(feature_columns)

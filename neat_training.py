@@ -7,10 +7,10 @@ import msm_model
 import numpy as np
 import utils
 
-runs_per_net = 1
+runs_per_net = 4
 
 def make_env(action_discretization_cnt=None):
-    return msm_model.MSM_Environment(setpoint_limits=0.008, simulation_time=0.10, action_discretization_cnt=action_discretization_cnt)
+    return msm_model.MSM_Environment(setpoint_limits=(0.001, 0.012), force_limits=(1, 10), simulation_time=0.20, action_discretization_cnt=action_discretization_cnt)
 
 
 # Use the NN network phenotype and the discrete actuator force function.
@@ -92,8 +92,8 @@ def run(folder_name, new_training, checkpoint_name=""):
 
 if __name__ == '__main__':
     save_folder_name = utils.NEAT_FOLDER
-    new_training = True
-    run(save_folder_name, new_training, checkpoint_name="checkpoint-2001 fitness -5776Backup")
+    new_training = False
+    run(save_folder_name, new_training, checkpoint_name="checkpoint-1286")
 
 
 

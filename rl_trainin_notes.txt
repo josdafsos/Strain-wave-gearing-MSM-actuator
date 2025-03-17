@@ -4,3 +4,24 @@ For random setpoint system was tested
         net_arch=[256, 256, 512],  # hidden layers with VALUE neurons each
         activation_fn=torch.nn.ReLU
 for 3e7 steps. Not converged, no progress
+
+---------------
+DQN training:
+Architecture:
+        net_arch=[256, 256],  # hidden layers with VALUE neurons each
+        activation_fn=torch.nn.ELU
+
+        model = DQN("MlpPolicy",
+                    vec_env,
+                    device=device,
+                    learning_rate=learning_rate,
+                    policy_kwargs=policy_kwargs,
+                    gradient_steps=-1,  #-1,  # suggested by Ming, default 1
+                    batch_size=256,
+                    verbose=1,)
+
+1. 10 stack; obs: ['rack_phase', 'rack_vel', 'rack_tanh_acc', 'velocity_setpoint',], trained for 2e6 steps, learning rate 1e-4.
+Final mean reward (several runs): oscillate around 7.0; around 5.0; around 9.0
+
+2. 10 stack, obs: ['rack_phase', 'rack_vel', 'rack_tanh_acc', 'velocity_setpoint', 'error_integral', 'error_derivative', 'is_max_teeth_engaged']
+Final mean reward: oscillation around 11.0 (not yet converged to maximum), around 10.7; reward peaked at around 11.0 (during first 40% of training) and then degraded to 2

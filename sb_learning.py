@@ -186,10 +186,10 @@ if __name__ == '__main__':
     env = make_env()
 
     # Vectorized environment setup
-    num_envs = 20  # Number of parallel environments
+    num_envs = 200  # Number of parallel environments
     vec_env = SubprocVecEnv([make_env for _ in range(num_envs)])  # Or use DummyVecEnv([make_env])
     vec_env = VecMonitor(vec_env)
-    timesteps = int(1e6)
+    timesteps = int(2e6)
     if num_envs == 1:
         vec_env = env
     """
