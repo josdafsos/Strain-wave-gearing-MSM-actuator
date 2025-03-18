@@ -20,8 +20,21 @@ Architecture:
                     batch_size=256,
                     verbose=1,)
 
+Reward = max(1 / (0.1 + abs(dv)) - 9.8, 0)
+
 1. 10 stack; obs: ['rack_phase', 'rack_vel', 'rack_tanh_acc', 'velocity_setpoint',], trained for 2e6 steps, learning rate 1e-4.
 Final mean reward (several runs): oscillate around 7.0; around 5.0; around 9.0
 
 2. 10 stack, obs: ['rack_phase', 'rack_vel', 'rack_tanh_acc', 'velocity_setpoint', 'error_integral', 'error_derivative', 'is_max_teeth_engaged']
 Final mean reward: oscillation around 11.0 (not yet converged to maximum), around 10.7; reward peaked at around 11.0 (during first 40% of training) and then degraded to 2
+
+3. 5 stack, obs: ['rack_phase', 'rack_vel', 'rack_tanh_acc', 'velocity_setpoint', 'error_integral', 'error_derivative', 'is_max_teeth_engaged']
+Final mean reward: 11.1, not converged to maximum yet; 11.5; scillating around 9.46
+
+4. obs + 4*stack: core obs ['rack_phase', 'rack_vel', 'rack_tanh_acc', 'velocity_setpoint', 'error_integral', 'error_derivative', 'is_max_teeth_engaged']
++ 4 x stack: ['rack_phase', 'rack_vel', 'rack_tanh_acc', 'velocity_setpoint',]
+Final mean reward: 11.6 not yet converged; 10.7 almost converged; 10.4
+
+5. obs + 10*stack: core obs ['rack_phase', 'rack_vel', 'rack_tanh_acc', 'velocity_setpoint', 'error_integral', 'error_derivative', 'is_max_teeth_engaged']
++ 10 x stack: ['rack_phase', 'rack_vel', 'rack_tanh_acc', 'velocity_setpoint',]
+Final mean reward: 10.6 not yet converged; 9.7; oscillating around 8.0

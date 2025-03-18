@@ -617,7 +617,7 @@ class MSM_Environment(gym.Env):
                  setpoint_limits: float | tuple[float, float] | None = 0.008,
                  force_limits: float | tuple[float, float] = 2.0,
                  simulation_time: float = 0.05,
-                 action_discretization_cnt: int = None):
+                 action_discretization_cnt: int | None = None):
         """
 
         :param return_observation_sequence: If True a stacked frame of observations is returned
@@ -640,8 +640,8 @@ class MSM_Environment(gym.Env):
             self.action_space = spaces.Discrete(action_discretization_cnt)
             self.discrete_action_mapping = np.linspace(0, 1, action_discretization_cnt)
 
-        self.observation_set_cnt = 10  # number of consecutive observation steps to be stuck together (minimum is 1)
-        self.total_obs_cnt = utils.features_cnt * self.observation_set_cnt
+        self.observation_set_cnt = 10  # number of additional consecutive observation steps to be stuck together (will be added to the main observations)
+        self.total_obs_cnt = utils.features_cnt + utils.feature_stack_cnt * self.observation_set_cnt
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(self.total_obs_cnt,), dtype=np.float32)
         self.environment = MSMLinear(tb_type=1,
                                      controller_type="closed_loop")
@@ -693,9 +693,11 @@ class MSM_Environment(gym.Env):
             obs = np.transpose(np.array(obs))
         else:
             obs = []
-            for i in range(1, self.observation_set_cnt + 1):
+            for feature_name in utils.feature_columns_extended:
+                obs.append(self.environment.simulation_data[feature_name][-1])
+            for i in range(2, self.observation_set_cnt + 2):
                 sub_obs = []
-                for feature_name in utils.feature_columns_extended:
+                for feature_name in utils.feature_columns_stack:
                     sub_obs.append(self.environment.simulation_data[feature_name][-i])
                 obs.extend(sub_obs)
             obs = np.transpose(np.array(obs))
