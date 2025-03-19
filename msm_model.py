@@ -640,7 +640,7 @@ class MSM_Environment(gym.Env):
             self.action_space = spaces.Discrete(action_discretization_cnt)
             self.discrete_action_mapping = np.linspace(0, 1, action_discretization_cnt)
 
-        self.observation_set_cnt = 10  # number of additional consecutive observation steps to be stuck together (will be added to the main observations)
+        self.observation_set_cnt = 9  # number of additional consecutive observation steps to be stuck together (will be added to the main observations)
         self.total_obs_cnt = utils.features_cnt + utils.feature_stack_cnt * self.observation_set_cnt
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(self.total_obs_cnt,), dtype=np.float32)
         self.environment = MSMLinear(tb_type=1,
@@ -661,7 +661,7 @@ class MSM_Environment(gym.Env):
             if self.setpoint_limits is None:
                 self.setpoint_limits = (0.001, 0.014)
             self.velocity_setpoint = None
-            msg += f"random setpoint option is set, setpoint range [{self.setpoint_limits[0]}, {self.setpoint_limits[1]}] m/s"
+            msg += f"Random setpoint option is set, setpoint range [{self.setpoint_limits[0]}, {self.setpoint_limits[1]}] m/s"
         else:
             self.randomize_setpoint = False
             self.velocity_setpoint = self.setpoint_limits
@@ -676,7 +676,7 @@ class MSM_Environment(gym.Env):
         self.force_limits = force_limits
         if not isinstance(self.force_limits, float):
             self.randomize_force = True
-            msg += f"; Random setpoint option is set, setpoint range [{self.force_limits[0]}, {self.force_limits[1]}] N"
+            msg += f"; Random force option set in range [{self.force_limits[0]}, {self.force_limits[1]}] N"
         else:
             self.randomize_force = False
             msg += f"; A constant force will be used with value {self.force_limits} N"

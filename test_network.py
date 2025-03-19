@@ -4,7 +4,7 @@ import pickle
 import neat
 from simple_pid import PID
 from stable_baselines3 import SAC, DQN
-#import visualize
+import visualize
 import msm_model
 import mujoco_viewer
 import neat_training
@@ -100,14 +100,15 @@ def run_neat(model_params, render_environment=True, enable_plots=False):
         return action
 
     env = run_sim(net, predict_func, model_params, render_environment, enable_plots)
+    # node_names = {-5: 'links', -4: 'halblinks', -3: 'vorne', -2: 'halbrechts', -1: 'rechts', 0: 'nach links',
+    #               1: 'nach rechts'}  # this is just an example of node naming
 
+    visualize.draw_net(config, winner, True) #, node_names=node_names)
 
-    # visualize.draw_net(config, winner, True, node_names=node_names)
-    #
-    # visualize.draw_net(config, winner, view=True, node_names=node_names,
+    # visualize.draw_net(config, winner, view=True, #node_names=node_names,
     #                    filename="winner-feedforward.gv")
-    # visualize.draw_net(config, winner, view=True, node_names=node_names,
-    #                    filename="winner-feedforward-enabled-pruned.gv", prune_unused=True)
+    visualize.draw_net(config, winner, view=True, #node_names=node_names,
+                       filename="winner-feedforward-enabled-pruned.gv", prune_unused=True)
     return env
 
 
@@ -201,16 +202,16 @@ def run_dqn(model_params, render_environment=True, enable_plots=False):
 if __name__ == '__main__':
     # network types: # "neat" "sac" "ppo" "pid"
     networks = []  # list of tuples with (network type, filename, <optional> name prefix)
-    #networks.append(("neat", "neatsave_5kHz_70_obs_4_01_fitness_0_06_seconds_checkpoint-2932", "4.01 fit"))
-    #networks.append(("neat", "neatsave_5khz_70obs_4_02_fitness_0_06_seconds_checkpoint-2750", "4.02_fit"))
+    networks.append({"type": "neat", "file": "neatsave_5kHz_70_obs_4_01_fitness_0_06_seconds_checkpoint-2932", "postfix": "4.01 fit"})
+    #networks.append({"type": "neat", "file": "neatsave_5khz_70obs_4_02_fitness_0_06_seconds_checkpoint-2750", "postfix": "4.02_fit"})
     #networks.append({"type": "neat", "file": "neatsave_4khz_70obs_checkpoint-482_fitness_0_12351", "postfix": "4khz"})
     # 1000000_network_03_12_25_Ming
     # networks.append({"type": "sac", "file": "FIRST_SUCCESS_SAC_7500000_steps_0_08_setpoint"})
     #networks.append({"type": "dqn", "file": "STABLE_0_008_setpoint_1000000_network_03_10_25_", "postfix": "stable"})
     #networks.append({"type": "dqn", "file": "dqn_70_obs_4000_Hz_freq_1000000_network_9_68_fit", "postfix": "new"})
     # networks.append({"type": "dqn", "file": "1000000_network_03_12_25_Ming", "postfix": "new"})
-    networks.append({"type": "pid", "file": ""})
-    plot_comparisons = True
+    # networks.append({"type": "pid", "file": ""})
+    plot_comparisons = False
     velocity_range = 0.008  # (0.005, 0.010)
     #velocity_range = np.linspace(0.006, 0.010, 3)
     render_environment = False
