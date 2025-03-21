@@ -35,7 +35,7 @@ def make_env():
     global reward_log_list, log_dir
     # if Monitor class is used, access environment via env.get_env()
     # return gym.make('CartPole-v1')
-    return msm_model.MSM_Environment(simulation_time=0.03, action_discretization_cnt=20)
+    return msm_model.MSM_Environment(simulation_time=0.03, setpoint_limits=(0.006, 0.010), action_discretization_cnt=20)
     # return Monitor(msm_model.MSM_Environment(randomize_setpoint=True), log_dir)
 
 def plot_rewards_history(vec_env):
@@ -146,7 +146,7 @@ def get_td3_model(model_name, vec_env, device, learning_rate):
                     device=device,
                     learning_rate=learning_rate,
                     policy_kwargs=policy_kwargs,
-                    batch_size=64,
+                    batch_size=1024,
                     verbose=1)
     else:
         print("Loading TD3 model for training")
@@ -162,7 +162,7 @@ if __name__ == '__main__':
     # TODO at a new tooth engagement, there is an unrealistic oscillations. Try to adjust sim parameters to avoid this effect
 
     model_name = ""  # leave empty if a new model must be trained
-    # model_name = "4000000_network_03_10_25"
+    model_name = "fitness_12_8_test_set_8_dqn_32_obs_4000_Hz_freq_4000000_network_03_19_25"
     model_type = "dqn"  # sac, ppo,
 
     model_dict = {
@@ -189,7 +189,7 @@ if __name__ == '__main__':
     num_envs = 200  # Number of parallel environments
     vec_env = SubprocVecEnv([make_env for _ in range(num_envs)])  # Or use DummyVecEnv([make_env])
     vec_env = VecMonitor(vec_env)
-    timesteps = int(2e6)
+    timesteps = int(1e7)
     if num_envs == 1:
         vec_env = env
     """

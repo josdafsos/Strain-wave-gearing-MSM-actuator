@@ -21,8 +21,10 @@ Architecture:
                     verbose=1,)
 
 Reward = max(1 / (0.1 + abs(dv)) - 9.8, 0)
+Velocity, velocity error and velocity error derivative are not normalized
+Trained for 2e6 steps, learning rate 1e-4
 
-1. 10 stack; obs: ['rack_phase', 'rack_vel', 'rack_tanh_acc', 'velocity_setpoint',], trained for 2e6 steps, learning rate 1e-4.
+1. 10 stack; obs: ['rack_phase', 'rack_vel', 'rack_tanh_acc', 'velocity_setpoint',],
 Final mean reward (several runs): oscillate around 7.0; around 5.0; around 9.0
 
 2. 10 stack, obs: ['rack_phase', 'rack_vel', 'rack_tanh_acc', 'velocity_setpoint', 'error_integral', 'error_derivative', 'is_max_teeth_engaged']
@@ -38,3 +40,39 @@ Final mean reward: 11.6 not yet converged; 10.7 almost converged; 10.4
 5. obs + 10*stack: core obs ['rack_phase', 'rack_vel', 'rack_tanh_acc', 'velocity_setpoint', 'error_integral', 'error_derivative', 'is_max_teeth_engaged']
 + 10 x stack: ['rack_phase', 'rack_vel', 'rack_tanh_acc', 'velocity_setpoint',]
 Final mean reward: 10.6 not yet converged; 9.7; oscillating around 8.0
+
+6. obs + 6*stack: core obs ['rack_phase', 'rack_vel', 'rack_tanh_acc', 'velocity_setpoint', 'error_integral', 'error_derivative', 'is_max_teeth_engaged']
++ 6 x stack: ['rack_phase', 'rack_vel', 'rack_tanh_acc', 'velocity_setpoint',]
+Final mean reward: 11.2 not yet converged; 10.6; 9.9
+
+NOTE: the following trials have all normalized input data
+
+7. obs + 5*stack: core obs ['rack_phase', 'rack_vel_normalized', 'rack_tanh_acc', 'velocity_setpoint_normalized', 'error_integral', 'error_derivative_tanh', 'is_max_teeth_engaged']
++ 5 x stack: ['rack_phase', 'rack_vel_normalized', 'rack_tanh_acc', 'is_max_teeth_engaged']
+Final mean reward: 10.8; 11.4 not fully converged; high oscillations from 6.27 to 11.7
+
+8. obs + 5*stack: core obs ['rack_phase', 'rack_vel_normalized', 'rack_tanh_acc', 'velocity_setpoint_normalized', 'error_integral', 'error_derivative_tanh', 'is_max_teeth_engaged']
++ 5 x stack: ['rack_phase', 'rack_vel_normalized', 'rack_tanh_acc', 'is_max_teeth_engaged', 'velocity_setpoint_normalized']
+Final mean reward: 10.6; 12.8 not fully converged; 11.2
+
+
+Architecture modified to:
+    policy_kwargs = dict(
+        net_arch=[16, 256],  # hidden layers with VALUE neurons each
+        activation_fn=torch.nn.ELU
+    )
+
+9. Obs + stack same as in 8.
+Final mean reward: 7.8; 8.0; 8.0
+
+10. Obs + stack same as in 8. net_arch=[32, 256],
+Final mean reward:peak with 8,0, oscillate around 7.0, at the end dropped to 5.0, but before reached 10.0
+
+11. Obs + stack same as in 8. net_arch=[64, 256],
+Final mean reward: 10.1 not fully converged; 10.1 not fully converged (yes, again);12.6 not fully converged
+
+12. Obs + stack same as in 8. net_arch=[80, 256],
+Final mean reward:degraded to 6.8, peaked at 11.4; 10.4 not  converged; 12.4 not converged yet
+
+12. Obs + stack same as in 8. net_arch=[100, 256],
+Final mean reward: 12.4 not converged yet; 10.9 not fully converged

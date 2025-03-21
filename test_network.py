@@ -42,6 +42,8 @@ def run_sim(model, predict_func, model_params, render_environment, enable_plots)
         if terminated or truncated:
             break
         if render_environment:
+            if not viewer.is_alive:
+                break
             viewer.render()
 
     if render_environment:

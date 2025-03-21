@@ -458,6 +458,8 @@ class MSMLinear():
         self.simulation_data["time"] = np.append(self.simulation_data["time"], self.data.time)
         self.simulation_data["rack_pos"] = np.append(self.simulation_data["rack_pos"], self.data.qpos[self.rack_joint_id])
         self.simulation_data["rack_vel"] = np.append(self.simulation_data["rack_vel"], self.data.qvel[self.rack_joint_id])
+        self.simulation_data["rack_vel_normalized"] = np.append(self.simulation_data["rack_vel_normalized"],
+                                                     self.data.qvel[self.rack_joint_id] / utils.VELOCITY_NORMALIZATION_CONSTANT)
         self.simulation_data["rack_acc"] = np.append(self.simulation_data["rack_acc"], self.data.qacc[self.rack_joint_id])
         self.simulation_data["rack_tanh_acc"] = np.append(self.simulation_data["rack_tanh_acc"],
                                                           math.tanh(0.001*self.data.qacc[self.rack_joint_id]))
@@ -471,20 +473,20 @@ class MSMLinear():
         self.simulation_data["is_max_teeth_engaged"] = np.append(self.simulation_data["is_max_teeth_engaged"],
                                                                  self.currently_actuated_teeth_cnt)
 
-
     def collect_velocity_setpoint(self, velocity_setpoint):
         self.simulation_data["velocity_setpoint"] = np.append(self.simulation_data["velocity_setpoint"], velocity_setpoint)
+        self.simulation_data["velocity_setpoint_normalized"] = np.append(self.simulation_data["velocity_setpoint_normalized"],
+                                                              velocity_setpoint / utils.VELOCITY_NORMALIZATION_CONSTANT)
         current_error = self.simulation_data["rack_vel"][-1] - velocity_setpoint
         previous_error = self.simulation_data["rack_vel"][-2] - self.simulation_data["velocity_setpoint"][-2]
         error_integral = self.simulation_data["error_integral"][-1] + current_error
         error_integral = min(1, error_integral)
         error_integral = max(-1, error_integral)
-        error_derivative = current_error - previous_error
+        error_derivative = np.tanh(current_error - previous_error)
         self.simulation_data["error_integral"] = np.append(self.simulation_data["error_integral"],
                                                            error_integral)
-        self.simulation_data["error_derivative"] = np.append(self.simulation_data["error_derivative"],
+        self.simulation_data["error_derivative_tanh"] = np.append(self.simulation_data["error_derivative_tanh"],
                                                              error_derivative)
-
 
     def onstep_computation(self, model=None, data=None):
         """
@@ -507,7 +509,6 @@ class MSMLinear():
         # self.onstep_computation()  # NOTE: steps_per_call must be equal to 1 for the function to work normally
         self._collect_controller_data()
 
-
     def reset(self):
         mujoco.mj_resetData(self.model, self.data)
         # Optionally set qpos/qvel to specific values
@@ -518,14 +519,17 @@ class MSMLinear():
             "time": np.zeros(utils.sequence_length),  # np.array([]),
             "rack_pos": np.zeros(utils.sequence_length),
             "rack_vel": np.zeros(utils.sequence_length),
+            "rack_vel_normalized": np.zeros(utils.sequence_length),
             "rack_acc": np.zeros(utils.sequence_length),
             "rack_tanh_acc": np.zeros(utils.sequence_length),
             "rack_phase": np.zeros(utils.sequence_length),
             "control_value": np.zeros(utils.sequence_length),
             "velocity_setpoint": np.zeros(utils.sequence_length),
+            "velocity_setpoint_normalized": np.zeros(utils.sequence_length),
             "error_integral": np.zeros(utils.sequence_length),
-            "error_derivative": np.zeros(utils.sequence_length),
+            "error_derivative_tanh": np.zeros(utils.sequence_length),
             "is_max_teeth_engaged": np.zeros(utils.sequence_length),  # integer value, 1 if max possible number of teeth is engaged, 0 ozerwise
+
         }
         self._collect_controller_data()
 
@@ -640,7 +644,7 @@ class MSM_Environment(gym.Env):
             self.action_space = spaces.Discrete(action_discretization_cnt)
             self.discrete_action_mapping = np.linspace(0, 1, action_discretization_cnt)
 
-        self.observation_set_cnt = 9  # number of additional consecutive observation steps to be stuck together (will be added to the main observations)
+        self.observation_set_cnt = 5  # number of additional consecutive observation steps to be stuck together (will be added to the main observations)
         self.total_obs_cnt = utils.features_cnt + utils.feature_stack_cnt * self.observation_set_cnt
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(self.total_obs_cnt,), dtype=np.float32)
         self.environment = MSMLinear(tb_type=1,
@@ -674,12 +678,18 @@ class MSM_Environment(gym.Env):
         msg += f"; Total observations: {self.total_obs_cnt}"
 
         self.force_limits = force_limits
-        if not isinstance(self.force_limits, float):
+        if isinstance(self.force_limits, float) or isinstance(self.force_limits, int):
+            self.randomize_force = False
+            self.environment.set_rack_load(force_limits)
+            msg += f"; A constant force will be used with value {self.force_limits} N"
+            if force_limits > 0:
+                msg += "; NOTE: FORCE VALUE IS POSITIVE, IT ACTS TOWARDS THE DESIRED VELOCITY DIRECTION"
+        else:
             self.randomize_force = True
             msg += f"; Random force option set in range [{self.force_limits[0]}, {self.force_limits[1]}] N"
-        else:
-            self.randomize_force = False
-            msg += f"; A constant force will be used with value {self.force_limits} N"
+            if self.force_limits[0] > 0 or self.force_limits[1] > 0:
+                msg += "; NOTE: FORCE VALUE CAN BE POSITIVE, IT ACTS TOWARDS THE DESIRED VELOCITY DIRECTION"
+
         print(msg)
 
     def _get_observation(self):
