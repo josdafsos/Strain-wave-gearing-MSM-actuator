@@ -20,6 +20,7 @@ Architecture:
                     batch_size=256,
                     verbose=1,)
 
+simulation_time=0.03
 Reward = max(1 / (0.1 + abs(dv)) - 9.8, 0)
 Velocity, velocity error and velocity error derivative are not normalized
 Trained for 2e6 steps, learning rate 1e-4
@@ -55,6 +56,9 @@ Final mean reward: 10.8; 11.4 not fully converged; high oscillations from 6.27 t
 + 5 x stack: ['rack_phase', 'rack_vel_normalized', 'rack_tanh_acc', 'is_max_teeth_engaged', 'velocity_setpoint_normalized']
 Final mean reward: 10.6; 12.8 not fully converged; 11.2
 
+8-1:
+12.8 post-trained for 2e8 steps,with velocity setpoint_limits=(0.006, 0.010), learning_rate = 1e-8 and simulation time 0.06. Resulting mean reward 20.6 (10.3 recalculated for 0.03 sim time). 1e8 steps computed for 1d, 3 hours.
+DQN has better performance than pid at velocity 0.0076
 
 Architecture modified to:
     policy_kwargs = dict(
@@ -76,3 +80,48 @@ Final mean reward:degraded to 6.8, peaked at 11.4; 10.4 not  converged; 12.4 not
 
 12. Obs + stack same as in 8. net_arch=[100, 256],
 Final mean reward: 12.4 not converged yet; 10.9 not fully converged
+
+13. Obs same as in 8. architecture:
+policy_kwargs = dict(
+        net_arch=[256, 256, 256],
+        activation_fn=torch.nn.ELU
+    )
+
+simulation_time=0.06, velocity set point limits=(0.006, 0.010)
+
+Mean reward after3e7 episodes 16, not converged yet, lr= 1e-8.
+LR reduced to 1e-9, training continued - no progress observed after 1e7 steps.
+LR changed to 1e-6 much better performance, reward started to grow and reached 16.5 (not converged yet), trained for 5e6 steps
+LR changed to 1e-3: very poor performance, the agent rapidly degrades
+LR changed to 1e-4: the max reward reached over 18.0, but the training is unstable and reward jumps back and forth
+LR changed to 1e-4: 1e-5. trained for 5e6 steps, reward 21.6, not converged yet
+Training continued for 2e7, reached reward 22.3, but at the end dropped to 19.7 (use a checkpoint from the middle)
+Checkpoint with 44000000 steps worked best most of the times (on each training run the result is different), training continues from it.
+The velocity range was expanded to full available range: velocity set point limits=(0.001, 0.012)
+With RL 2e-5: the system degraded
+With RL 5e-6: initial reward was poor due to set point range extension, but it converged back to 21.3; training continued for 5e7, peak reward over 24.2 at 97M steps and 98.5Mcsteps converged.
+Training continued from 97M steps, With RL 1e-6, for 5e7 steps: reward 23.9, converged
+Training continued, With RL 5e-7: No improvements since the previous run
+
+14. New architecture:
+    policy_kwargs = dict(
+        net_arch=[512, 512],
+        activation_fn=torch.nn.ELU
+    )
+    RL = 1e-6
+    simulation_time=0.06, setpoint_limits=(0.001, 0.012)
+    Run for 3e7 steps, 30% of steps for exploration (epsilon decay to 5% when 30% of steps is reached)
+    Reached up to 20.0, converged at 1e7 steps
+    Training continued for 1e7 with LR=5e-6 - reward increased to 21.4 and converged
+    Training continued for 1e7 with LR=1e-5 - converged to 22.5
+    Training continued for 1e7 with LR=1e-6 - converged to 23.9
+    Training continued for 1e7 with LR=2e-7 - not much improvement, oscillating around 24.0; NAMED AS "stable_24_8_fit_dqn_32_obs_4000_Hz_freq_30000000_steps"
+    Training continued for 1e7 with LR=5e-8 - did not improve, retraining without this episode
+    Training continued for 1e7 with LR=1e-8 - did not improve, retraining without this episode, yet 25.1 reward was noticed at some point (very narrow time period)
+    Training continued for 3e6 with LR=2e-6 - did not improve, retraining without this episode
+    Training continued for 3e6 with LR=5e-7 - slightly improved to 24.1 (even though previous recording was higher)
+    Training continued for 3e6 with LR=5e-7 - did not improve, retraining without this episode
+    Training continued for 3e6 with LR=2e-7 - did not improve, retraining without this episode
+
+
+

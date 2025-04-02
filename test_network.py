@@ -17,7 +17,9 @@ import matplotlib.pyplot as plt
 
 def make_env(action_discretization_cnt=None):
     global velocity_setpoint
-    return msm_model.MSM_Environment(setpoint_limits=velocity_setpoint, simulation_time=0.30, action_discretization_cnt=action_discretization_cnt)
+    return msm_model.MSM_Environment(setpoint_limits=velocity_setpoint,
+                                     simulation_time=0.06,
+                                     action_discretization_cnt=action_discretization_cnt)
 
 
 def run_sim(model, predict_func, model_params, render_environment, enable_plots):
@@ -126,7 +128,10 @@ def plot_velocity_mse(networks):
             plot_label = network["type"] + " " + network["postfix"]
         else:
             plot_label = network["type"]
-        plt.plot(velocity, mse, label=plot_label)
+        linestyle = '-'
+        if network["type"] == 'pid':
+            linestyle = '--'  # dashed line for pid for easier comparison
+        plt.plot(velocity, mse, label=plot_label, linestyle=linestyle)
 
     plt.xlabel("Desired velocity m/s")
     plt.ylabel("Velocity MSE (m/s)^2")
@@ -194,7 +199,7 @@ def run_dqn(model_params, render_environment=True, enable_plots=False):
     model = DQN.load(os.path.join('sb_neural_networks', "dqn", model_name))
 
     def predict_func(model, env, obs):
-        action, _states = model.predict(obs)
+        action, _states = model.predict(obs, deterministic=True)
         return action
 
     env = run_sim(model, predict_func, model_params, render_environment, enable_plots)
@@ -204,7 +209,7 @@ def run_dqn(model_params, render_environment=True, enable_plots=False):
 if __name__ == '__main__':
     # network types: # "neat" "sac" "ppo" "pid"
     networks = []  # list of tuples with (network type, filename, <optional> name prefix)
-    networks.append({"type": "neat", "file": "neatsave_5kHz_70_obs_4_01_fitness_0_06_seconds_checkpoint-2932", "postfix": "4.01 fit"})
+    # networks.append({"type": "neat", "file": "neatsave_5kHz_70_obs_4_01_fitness_0_06_seconds_checkpoint-2932", "postfix": "4.01 fit"})
     #networks.append({"type": "neat", "file": "neatsave_5khz_70obs_4_02_fitness_0_06_seconds_checkpoint-2750", "postfix": "4.02_fit"})
     #networks.append({"type": "neat", "file": "neatsave_4khz_70obs_checkpoint-482_fitness_0_12351", "postfix": "4khz"})
     # 1000000_network_03_12_25_Ming
@@ -212,10 +217,28 @@ if __name__ == '__main__':
     #networks.append({"type": "dqn", "file": "STABLE_0_008_setpoint_1000000_network_03_10_25_", "postfix": "stable"})
     #networks.append({"type": "dqn", "file": "dqn_70_obs_4000_Hz_freq_1000000_network_9_68_fit", "postfix": "new"})
     # networks.append({"type": "dqn", "file": "1000000_network_03_12_25_Ming", "postfix": "new"})
-    # networks.append({"type": "pid", "file": ""})
-    plot_comparisons = False
-    velocity_range = 0.008  # (0.005, 0.010)
-    #velocity_range = np.linspace(0.006, 0.010, 3)
+    # networks.append({"type": "dqn", "file": "fitness_12_8_test_set_8_dqn_32_obs_4000_Hz_freq_14000000_network_03_19_25_new_new", "postfix": ""})
+    # networks.append(
+#    networks.append(
+#        {"type": "dqn", "file": "dqn_32_obs_4000_Hz_freq_56000000_steps (Copy)",
+#         "postfix": "checkpoint 56"})
+    # networks.append(
+    #     {"type": "dqn", "file": "semistable_outperformance_dqn_32_obs_4000_Hz_freq_49000000_steps",
+    #      "postfix": "full range"})
+    networks.append(
+        {"type": "dqn", "file": "semistable_outperformance_dqn_32_obs_4000_Hz_freq_97000000_steps_new",
+         "postfix": "new best"})
+    networks.append(
+        {"type": "dqn", "file": "semistable_outperformance_dqn_32_obs_4000_Hz_freq_97000000_steps_new_new",
+         "postfix": "28_03"})
+    networks.append(
+        {"type": "dqn", "file": "stable_24_8_fit_dqn_32_obs_4000_Hz_freq_30000000_steps",
+         "postfix": "2 layers x 512 units"})
+
+    networks.append({"type": "pid", "file": ""})
+    plot_comparisons = True
+    velocity_range = 0.005  # (0.005, 0.010)
+    # velocity_range = np.linspace(0.002, 0.011, 20)
     render_environment = False
     enable_individual_plots = False
 

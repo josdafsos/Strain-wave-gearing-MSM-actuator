@@ -6,7 +6,7 @@ from sb3_contrib import RecurrentPPO, ARS
 from stable_baselines3 import PPO, SAC, DQN, TD3
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecMonitor
 from stable_baselines3.common import results_plotter
-from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback
+from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback, EvalCallback, CallbackList
 import os
 import mujoco_viewer
 import torch
@@ -35,7 +35,7 @@ def make_env():
     global reward_log_list, log_dir
     # if Monitor class is used, access environment via env.get_env()
     # return gym.make('CartPole-v1')
-    return msm_model.MSM_Environment(simulation_time=0.03, setpoint_limits=(0.006, 0.010), action_discretization_cnt=20)
+    return msm_model.MSM_Environment(simulation_time=0.06, setpoint_limits=(0.001, 0.012), action_discretization_cnt=20)
     # return Monitor(msm_model.MSM_Environment(randomize_setpoint=True), log_dir)
 
 def plot_rewards_history(vec_env):
@@ -60,7 +60,7 @@ def plot_rewards_history(vec_env):
 
 def get_dqn_model(model_name, vec_env, device, learning_rate):
     policy_kwargs = dict(
-        net_arch=[256, 256],  # hidden layers with VALUE neurons each
+        net_arch=[512, 512],  # hidden layers with VALUE neurons each
         # activation_fn=torch.nn.ReLU
         activation_fn=torch.nn.ELU
     )
@@ -72,6 +72,7 @@ def get_dqn_model(model_name, vec_env, device, learning_rate):
                     device=device,
                     learning_rate=learning_rate,
                     policy_kwargs=policy_kwargs,
+                    exploration_fraction=0.3,
                     gradient_steps=-1,  #-1,  # suggested by Ming, default 1
                     batch_size=256,
                     verbose=1,)
@@ -160,9 +161,10 @@ if __name__ == '__main__':
     # TODO try TD3 (or an older version DDPG)
     # TODO try TRPO
     # TODO at a new tooth engagement, there is an unrealistic oscillations. Try to adjust sim parameters to avoid this effect
+    # TODO add action noise to parametrs if it is possible with a policy
 
     model_name = ""  # leave empty if a new model must be trained
-    model_name = "fitness_12_8_test_set_8_dqn_32_obs_4000_Hz_freq_4000000_network_03_19_25"
+    model_name = "dqn_32_obs_4000_Hz_freq_30000000_network_03_28_25__new_new_new_new_new"
     model_type = "dqn"  # sac, ppo,
 
     model_dict = {
@@ -180,8 +182,8 @@ if __name__ == '__main__':
     print(f"Current device: {device}")
 
     log_dir = 'logs'
-    learning_rate = 1e-4  # 1e-9 not yet tested; 1e-8 not working well
-    # TODO add action noise to parametrs if it is possible with a policy
+    learning_rate = 2e-7  # 1e-9 not yet tested; 1e-8 not working well
+
 
     env = make_env()
 
@@ -189,7 +191,7 @@ if __name__ == '__main__':
     num_envs = 200  # Number of parallel environments
     vec_env = SubprocVecEnv([make_env for _ in range(num_envs)])  # Or use DummyVecEnv([make_env])
     vec_env = VecMonitor(vec_env)
-    timesteps = int(1e7)
+    timesteps = int(3e6)
     if num_envs == 1:
         vec_env = env
     """
@@ -201,11 +203,16 @@ if __name__ == '__main__':
     model = model_dict[model_type](model_name, vec_env, device, learning_rate)
 
     obs_cnt = env.total_obs_cnt
+
+    # callback settings
+    checkpoint_path = './sb_neural_networks/' + model_type
     checkpoint_callback = CheckpointCallback(
         save_freq=int(2e4),
-        save_path='./sb_neural_networks/' + model_type + '/',  # './sb_neural_networks/3_512_layers_with_5_sets/'
+        save_path=checkpoint_path + '/checkpoints/',
         name_prefix=f"{model_type}_{obs_cnt}_obs_{utils.NN_WORKING_FREQUENCY}_Hz_freq"
     )
+    eval_callback = EvalCallback(vec_env, best_model_save_path=checkpoint_path + '/best_models/', eval_freq=int(5e3))
+    callback = CallbackList([checkpoint_callback, eval_callback])
 
     # Train the agent
     print(model.policy)

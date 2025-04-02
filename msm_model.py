@@ -619,7 +619,7 @@ class MSM_Environment(gym.Env):
     def __init__(self,
                  return_observation_sequence: bool = True,
                  setpoint_limits: float | tuple[float, float] | None = 0.008,
-                 force_limits: float | tuple[float, float] = 2.0,
+                 force_limits: float | tuple[float, float] = -2.0,
                  simulation_time: float = 0.05,
                  action_discretization_cnt: int | None = None):
         """
