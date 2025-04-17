@@ -58,7 +58,7 @@ class MSMLinear():
             raise "Unknown controller type"
         self.feedback_threshold = 1  # parameter used to compute the new tooth engagement timing
         self.control_value = 1
-        self.enable_blocking = False  # if true the unactuated teeth will still engage the rack if pid value is low
+        self.enable_blocking = True  # if true the unactuated teeth will still engage the rack if pid value is low
         self.output_vector = np.zeros(self.msm_elements_cnt)  # vector of currently active msm elements with actuation value
         self.currently_actuated_teeth_cnt = 0
 
@@ -399,9 +399,15 @@ class MSMLinear():
 
         self.currently_actuated_teeth_cnt -= 1
 
-        # TODO this part of algorithm is implemented currently only in one direction
+        if self.control_value < 0:
+            active_element_idx = ((np.where(np.abs(self.output_vector) > 1e-3)[0]
+                                  + self.msm_elements_cnt // 2) % self.msm_elements_cnt)
+            self.output_vector[:] = 0
+            self.output_vector[active_element_idx] = abs(self.control_value)
+
+
         # Engaging inactive teeth if control value is to low (to prevent rack from sliding away)
-        if self.enable_blocking and self.control_value < utils.CONTROL_VALUE_BLOCKING_LIMIT:
+        if self.enable_blocking and abs(self.control_value) < utils.CONTROL_VALUE_BLOCKING_LIMIT:
             blocking_value = ((utils.CONTROL_VALUE_BLOCKING_LIMIT - self.control_value) *
                               utils.MAX_BLOCKING_OUTPUT_VALUE / utils.CONTROL_VALUE_BLOCKING_LIMIT)
             self.output_vector[self.output_vector < 1e-3] = blocking_value
@@ -549,6 +555,25 @@ class MSMLinear():
         plt.grid()
         plt.show()
 
+    def plot_rack_position(self, desired_position=None):
+        if desired_position is None:
+            desired_position = []
+        time_vec = self.simulation_data["time"]
+        instant_pos_vec = self.simulation_data["rack_pos"]
+        desired_pos_vec = self.simulation_data["velocity_setpoint"]
+        # Plot results
+        plt.figure(figsize=(8, 4))
+        plt.plot(time_vec, instant_pos_vec * 1000, label="Rack Position (mm)")
+        if desired_position is not None:
+            length = len(time_vec)
+            plt.plot(time_vec, np.array(desired_position[:length]) * 1000, label="Desired position (mm)")
+        plt.xlabel("Time (s)")
+        plt.ylabel("Position (mm)")
+        plt.title("Rack position Over Time")
+        plt.legend()
+        plt.grid()
+        plt.show()
+
     def plot_rack_average_velocity(self):
         time_vec = self.simulation_data["time"][(utils.sequence_length + 1):]
         vel_data = np.divide(self.simulation_data["rack_pos"][(utils.sequence_length + 1):], time_vec)
@@ -621,7 +646,9 @@ class MSM_Environment(gym.Env):
                  setpoint_limits: float | tuple[float, float] | None = 0.008,
                  force_limits: float | tuple[float, float] = -2.0,
                  simulation_time: float = 0.05,
-                 action_discretization_cnt: int | None = None):
+                 action_discretization_cnt: int | None = None,
+                 inverse_sign_on_negative_ref=False,
+                 zero_setpoint_probability: float = 0.0):
         """
 
         :param return_observation_sequence: If True a stacked frame of observations is returned
@@ -634,7 +661,12 @@ class MSM_Environment(gym.Env):
         :param simulation_time duration of the simulation in seconds
         :param action_discretization_cnt if None, continuous space is used. Otherwise, a discrete space is used,
         with available number of action equal to the parameter value. Action space will be linearly split in range [0, 1]
+        :param inverse_sign_on_negative_ref: bool. If true, signs of certain observations and output value are inversed
+        on negative reference velocity value. Allows models working in [0 1] output range to work in the opposite direction
+        :param zero_setpoint_probability chance the velocity set point will be set to 0 and a random force will be applied.
+        Used to train an agent to hold position
         """
+        # TODO implement inverse_sign_on_negative_ref
         super().__init__()
 
         self.action_discretization_cnt = action_discretization_cnt
@@ -658,6 +690,8 @@ class MSM_Environment(gym.Env):
 
         self.velocity_setpoint_list = np.array([])
         self.setpoint_limits = setpoint_limits
+        self.inverse_sign_on_negative_ref = inverse_sign_on_negative_ref
+        self.zero_setpoint_probability = zero_setpoint_probability
 
         msg = ""
         if not isinstance(self.setpoint_limits, float):
@@ -704,11 +738,32 @@ class MSM_Environment(gym.Env):
         else:
             obs = []
             for feature_name in utils.feature_columns_extended:
-                obs.append(self.environment.simulation_data[feature_name][-1])
+                if self.inverse_sign_on_negative_ref and self.velocity_setpoint < 0:
+                    if feature_name == 'rack_phase':
+                        inversed_phase = (self.environment.simulation_data[feature_name][-1] + 0.5) % 1  # getting the fractional part
+                        obs.append(inversed_phase)
+                    elif feature_name in utils.sign_invertion_on_negative_reference_list:
+                        inversed_sign = -self.environment.simulation_data[feature_name][-1]
+                        obs.append(inversed_sign)
+                    else:
+                        obs.append(self.environment.simulation_data[feature_name][-1])
+                else:
+                    obs.append(self.environment.simulation_data[feature_name][-1])
             for i in range(2, self.observation_set_cnt + 2):
                 sub_obs = []
                 for feature_name in utils.feature_columns_stack:
-                    sub_obs.append(self.environment.simulation_data[feature_name][-i])
+                    if self.inverse_sign_on_negative_ref and self.velocity_setpoint < 0:
+                        if feature_name == 'rack_phase':
+                            inversed_phase = (self.environment.simulation_data[feature_name][
+                                                  -1] + 0.5) % 1  # getting the fractional part
+                            sub_obs.append(inversed_phase)
+                        elif feature_name in utils.sign_invertion_on_negative_reference_list:
+                            inversed_sign = -self.environment.simulation_data[feature_name][-1]
+                            sub_obs.append(inversed_sign)
+                        else:
+                            obs.append(self.environment.simulation_data[feature_name][-1])
+                    else:
+                        sub_obs.append(self.environment.simulation_data[feature_name][-i])
                 obs.extend(sub_obs)
             obs = np.transpose(np.array(obs))
         # print(obs)  # obs
@@ -718,6 +773,10 @@ class MSM_Environment(gym.Env):
         info = {}
         if self.action_discretization_cnt is not None:  # if discrete actions used, action input is index
             action = self.discrete_action_mapping[action]
+
+        if self.inverse_sign_on_negative_ref and self.velocity_setpoint < 0:
+            action = -1 * action
+
         self.environment.sim_step(action)
         self.environment.collect_velocity_setpoint(self.velocity_setpoint)  # duplicating self.velocity_setpoint_list
         observation = self._get_observation()
@@ -757,6 +816,13 @@ class MSM_Environment(gym.Env):
             force_range = self.force_limits[1] - self.force_limits[0]
             force_setpoint = random.random() * force_range + self.force_limits[0]
             self.environment.set_rack_load(force_setpoint)
+        else:
+            self.environment.set_rack_load(self.force_limits)
+
+        if self.zero_setpoint_probability > 1e-4:
+            self.velocity_setpoint = 0.0
+            new_force = -(random.random() * 5 + 1.0)
+            self.environment.set_rack_load(new_force)
 
         observation = self._get_observation()
         self.environment.collect_velocity_setpoint(self.velocity_setpoint)  # duplicating self.velocity_setpoint_list

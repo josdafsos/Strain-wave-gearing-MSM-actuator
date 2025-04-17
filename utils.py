@@ -18,6 +18,8 @@ feature_columns = ['mod_rack_position', 'rack_velocity', 'tahn_rack_acceleration
 feature_columns_extended = ['rack_phase', 'rack_vel_normalized', 'rack_tanh_acc', 'velocity_setpoint_normalized',
                            'error_integral', 'error_derivative_tanh', 'is_max_teeth_engaged']
 feature_columns_stack = ['rack_phase', 'rack_vel_normalized', 'rack_tanh_acc', 'is_max_teeth_engaged', 'velocity_setpoint_normalized']
+sign_invertion_on_negative_reference_list = ['rack_vel_normalized', 'rack_tanh_acc', 'velocity_setpoint_normalized',
+                                             'error_integral', 'error_derivative_tanh']
                            # 'error_integral', 'error_derivative_tanh', 'is_max_teeth_engaged']
 # feature_columns_extended = ['mod_rack_position', 'rack_velocity', 'tahn_rack_acceleration',
 #                        'desired_velocity', 'error_integral', 'error_derivative', 'is_max_teeth_engaged']
@@ -76,6 +78,64 @@ reward_list = np.array([])
 # --- folder names ---
 NEAT_FOLDER = "neat_training"
 
+
+# --- ploting of the results ---
+plot_info_dict = {
+    "steady velocity mse": {
+        "data": "steady velocity mse",
+        "xlable": "Velocity reference (mm/s)",
+        "ylable": "Velocity MSE (mm/s)^2",
+        "title": "Steady velocity MSE vs desired velocity"
+    },
+    "steady velocity rmse": {
+        "data": "steady velocity rmse",
+        "xlable": "Velocity reference (mm/s)",
+        "ylable": "Velocity RMSE (mm/s)",
+        "title": "Steady velocity RMSE vs desired velocity"
+    },
+    "transition velocity mse": {
+        "data": "transition velocity mse",
+        "xlable": "Velocity reference (mm/s)",
+        "ylable": "Velocity MSE (mm/s)^2",
+        "title": "Transition velocity MSE vs desired velocity"
+    },
+    "transition velocity rmse": {
+        "data": "transition velocity rmse",
+        "xlable": "Velocity reference (mm/s)",
+        "ylable": "Velocity RMSE (mm/s)",
+        "title": "Transition velocity RMSE vs desired velocity"
+    },
+    "steady velocity rmse average force": {
+        "data": "steady velocity rmse average force",
+        "xlable": "Velocity reference (mm/s)",
+        "ylable": "Velocity RMSE (mm/s)",
+        "title": "Steady velocity RMSE average along force vs desired velocity"
+    },
+    "transition velocity rmse average force": {
+        "data": "transition velocity rmse average force",
+        "xlable": "Velocity reference (mm/s)",
+        "ylable": "Velocity RMSE (mm/s)",
+        "title": "Transition velocity RMSE average along force vs desired velocity"
+    },
+    "max steady velocity rmse": {
+        "data": "max steady velocity rmse",
+        "xlable": "Velocity reference (mm/s)",
+        "ylable": "Velocity RMSE (mm/s)",
+        "title": "Max steady velocity RMSE"
+    },
+    "max transition velocity rmse": {
+        "data": "max transition velocity rmse",
+        "xlable": "Velocity reference (mm/s)",
+        "ylable": "Velocity RMSE (mm/s)",
+        "title": "Max transition velocity RMSE"
+    },
+    "position": {
+        "data": "rack position",
+        "xlable": "Time (s)",
+        "ylable": "Rack position (mm)",
+        "title": "Rack position over time"
+    }
+}
 
 def get_pid_data(sequence_length, num_files, print_time=False, folder= 'processed_data'):
     """

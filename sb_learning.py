@@ -35,7 +35,10 @@ def make_env():
     global reward_log_list, log_dir
     # if Monitor class is used, access environment via env.get_env()
     # return gym.make('CartPole-v1')
-    return msm_model.MSM_Environment(simulation_time=0.06, setpoint_limits=(0.001, 0.012), action_discretization_cnt=20)
+    return msm_model.MSM_Environment(simulation_time=0.06,
+                                     setpoint_limits=(0.000, 0.012),
+                                     action_discretization_cnt=20,
+                                     zero_setpoint_probability=0.3)
     # return Monitor(msm_model.MSM_Environment(randomize_setpoint=True), log_dir)
 
 def plot_rewards_history(vec_env):
@@ -164,7 +167,7 @@ if __name__ == '__main__':
     # TODO add action noise to parametrs if it is possible with a policy
 
     model_name = ""  # leave empty if a new model must be trained
-    model_name = "dqn_32_obs_4000_Hz_freq_30000000_network_03_28_25__new_new_new_new_new"
+    model_name = "best_dqn_32_obs_4000_Hz_freq_97000000_steps"
     model_type = "dqn"  # sac, ppo,
 
     model_dict = {
@@ -182,13 +185,13 @@ if __name__ == '__main__':
     print(f"Current device: {device}")
 
     log_dir = 'logs'
-    learning_rate = 2e-7  # 1e-9 not yet tested; 1e-8 not working well
+    learning_rate = 1e-6  # 1e-9 not yet tested; 1e-8 not working well
 
 
     env = make_env()
 
     # Vectorized environment setup
-    num_envs = 200  # Number of parallel environments
+    num_envs = 30  # Number of parallel environments
     vec_env = SubprocVecEnv([make_env for _ in range(num_envs)])  # Or use DummyVecEnv([make_env])
     vec_env = VecMonitor(vec_env)
     timesteps = int(3e6)

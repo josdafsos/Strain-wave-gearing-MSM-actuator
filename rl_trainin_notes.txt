@@ -122,6 +122,39 @@ Training continued, With RL 5e-7: No improvements since the previous run
     Training continued for 3e6 with LR=5e-7 - slightly improved to 24.1 (even though previous recording was higher)
     Training continued for 3e6 with LR=5e-7 - did not improve, retraining without this episode
     Training continued for 3e6 with LR=2e-7 - did not improve, retraining without this episode
+    Training continued for 3e6 with LR=2e-7 - improved to 24.7, named stable2_dqn_32_obs_4000_Hz_freq_30000000_network
+    On average better that PID
 
+15. Training for a variable force: idea is to train two networks for vel range 6 - 8 and 8 - 10 mm/s, but both optimized for force and use corresponding NN for the desired Velocity setpoint
+MSM_Environment(simulation_time=0.06, setpoint_limits=(0.008, 0.010), force_limits=(-8, -1), action_discretization_cnt=20)
+ policy_kwargs = dict(
+        net_arch=[512, 512],
+        activation_fn=torch.nn.ELU
+    )
+ RL = 2e-6
+ Converged to 17.3 after 40% of the training, named as force_training_15_experiment_dqn_32_obs_4000_Hz_freq_10000000_steps
+ Training continued for 3e6 with LR=5e-6, did not improve, retraining without this episode
+ Training continued for 3e6 with LR=1e-6, did not improve, retraining without this episode
+ Training continued for 3e6 with LR=2e-7, slightly improved
+ Training continued for 3e6 with LR=1e-7,
 
+16. (simulation_time=0.06, setpoint_limits=(0.001, 0.010), force_limits=(-7, -1), action_discretization_cnt=20)
+Training continued for 1e8 with LR=1e-6
+    policy_kwargs = dict(
+        net_arch=[256, 256, 256],  # hidden layers with VALUE neurons each
+        activation_fn=torch.nn.ELU
+    )
+Epsion converges to 0.05% after 30% of steps (previously in all experiments was 20% of episodes)
+Worked well, learning curve saved in documents. end reward 23.4; max found reward (from console) 25.1
 
+17. same as 16 once again, te-training
+converged after 6e+7 steps, average reward around 22.0
+
+18. Newtopology, other parameters unchanged
+    policy_kwargs = dict(
+        net_arch=[512, 512],  # hidden layers with VALUE neurons each
+        # activation_fn=torch.nn.ReLU
+        activation_fn=torch.nn.Tanh
+    )
+
+Converged After 30% of steps. average reward around 23.5

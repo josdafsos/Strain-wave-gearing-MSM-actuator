@@ -15,29 +15,54 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def make_env(action_discretization_cnt=None):
-    global velocity_setpoint
+def make_env(action_discretization_cnt=None, is_sign_inversed=False):
+    global velocity_setpoint, external_force
     return msm_model.MSM_Environment(setpoint_limits=velocity_setpoint,
-                                     simulation_time=0.06,
-                                     action_discretization_cnt=action_discretization_cnt)
+                                     force_limits=external_force,
+                                     simulation_time=2,  # 0.06
+                                     action_discretization_cnt=action_discretization_cnt,
+                                     inverse_sign_on_negative_ref=is_sign_inversed)
 
 
 def run_sim(model, predict_func, model_params, render_environment, enable_plots):
+    global current_position_controller, position_trajectory, is_position_control  # quick and dirty, sry whoever is working with it
+
+
     if model_params["type"] == "dqn":
-        env = make_env(action_discretization_cnt=20)
+        env = make_env(action_discretization_cnt=20, is_sign_inversed=True)
     else:
         env = make_env()
     obs, _ = env.reset()
     result = {}
+
+    if is_position_control:
+        pos_pid = PID(current_position_controller["kp"],
+                      current_position_controller["ki"],
+                      current_position_controller["kd"])  # PID(6, 20000, 8e-5)
+        pos_pid.sample_time = utils.NN_WORKING_PERIOD
+        pos_pid.proportional_on_measurement = False
+        pos_pid.differential_on_measurement = False
+        pos_traj_idx = 0
+
 
     if render_environment:
         viewer = mujoco_viewer.MujocoViewer(env.environment.model, env.environment.data)
         viewer.cam.azimuth = 180
         viewer.cam.distance = 0.005
     while True:  # viewer.is_alive:
-        vel = env.environment.simulation_data["rack_vel"]
-        control_error = vel[-1] - env.velocity_setpoint
-        # print(f"control error: {control_error}")
+        if is_position_control:
+            pos = env.environment.simulation_data["rack_pos"][-1]
+            control_error = pos - position_trajectory[pos_traj_idx]
+            # env setpoint is updated on env.step() call, therefore there is one frame delay for the setpoint to update
+            velocity_setpoint = pos_pid(control_error, dt=utils.NN_WORKING_PERIOD)
+            if model_params["type"] == "dqn":
+                velocity_setpoint = min(velocity_setpoint, 0.011)  # the model was not trained for too high position reference
+
+            env.velocity_setpoint = velocity_setpoint
+            pos_traj_idx += 1
+            pos_traj_idx %= len(position_trajectory)  # loop the trajectory
+
+
         action = predict_func(model, env, obs)
         # prediction = 1
         obs, reward, terminated, truncated, info = env.step(action)
@@ -55,18 +80,44 @@ def run_sim(model, predict_func, model_params, render_environment, enable_plots)
         label = model_params["type"] + " " + model_params["postfix"]
     else:
         label = model_params["type"]
-    steady_state_idx = int(0.02 / utils.NN_WORKING_FREQUENCY)
+    steady_state_idx = int(0.02 * utils.NN_WORKING_FREQUENCY)
     steady_state_vel = env.environment.simulation_data["rack_vel"][steady_state_idx:]
-    steady_state_desired_vel = env.environment.simulation_data["velocity_setpoint"][
-                               steady_state_idx:]
-    control_error = np.sum((steady_state_vel - steady_state_desired_vel) ** 2) / len(steady_state_vel)
-    print(f"{label} steady state mse {control_error}")
-    result["velocity mse"] = control_error
+    steady_state_desired_vel = env.environment.simulation_data["velocity_setpoint"][steady_state_idx:]
+    control_error = np.sum( ((steady_state_vel - steady_state_desired_vel) * 1000) ** 2) / len(steady_state_vel)
+    result["steady velocity mse"] = control_error
+    result["steady velocity rmse"] = np.sqrt(control_error)
+
+    transition_vel = env.environment.simulation_data["rack_vel"][:steady_state_idx]
+    transition_desired_vel = env.environment.simulation_data["velocity_setpoint"][:steady_state_idx]
+    control_error = np.sum( ((transition_vel - transition_desired_vel) * 1000) ** 2) / len(transition_vel)
+    result["transition velocity mse"] = control_error
+    result["transition velocity rmse"] = np.sqrt(control_error)
+
+    result["rack position"] = env.environment.simulation_data["rack_pos"]
+
+    ratio = len(env.environment.simulation_data["rack_pos"]) / len(position_trajectory)
+    if ratio > 1:
+        desired_position = list(position_trajectory) * (int(ratio) + 1)
+    else:
+        desired_position = position_trajectory
+
+    result["rack position"] = env.environment.simulation_data["rack_pos"]
+    result["reference position"] = desired_position
+    result["time"] = env.environment.simulation_data["time"]
+    rack_pos = env.environment.simulation_data["rack_pos"]
+    desired_position = desired_position[:len(rack_pos)]
+    steady_rack_pos = rack_pos[1000:]
+    steady_desired_position = desired_position[1000:]
+
+    steady_position_control_error = np.sum( ((steady_desired_position - steady_rack_pos) * 1000) ** 2) / len(steady_rack_pos)
+    print(f"Steady RMSE for {label} = {np.sqrt(steady_position_control_error)} ")
 
     if enable_plots:
         env.environment.plot_rack_instant_velocity()
-        env.environment.plot_rack_average_velocity()
+        # env.environment.plot_rack_average_velocity()
         env.environment.plot_control_value()
+        if is_position_control:
+            env.environment.plot_rack_position(desired_position)
 
 
     return env, result
@@ -106,38 +157,139 @@ def run_neat(model_params, render_environment=True, enable_plots=False):
     env = run_sim(net, predict_func, model_params, render_environment, enable_plots)
     # node_names = {-5: 'links', -4: 'halblinks', -3: 'vorne', -2: 'halbrechts', -1: 'rechts', 0: 'nach links',
     #               1: 'nach rechts'}  # this is just an example of node naming
+    if enable_plots:
+        visualize.draw_net(config, winner, True) #, node_names=node_names)
 
-    visualize.draw_net(config, winner, True) #, node_names=node_names)
-
-    # visualize.draw_net(config, winner, view=True, #node_names=node_names,
-    #                    filename="winner-feedforward.gv")
-    visualize.draw_net(config, winner, view=True, #node_names=node_names,
-                       filename="winner-feedforward-enabled-pruned.gv", prune_unused=True)
+        # visualize.draw_net(config, winner, view=True, #node_names=node_names,
+        #                    filename="winner-feedforward.gv")
+        visualize.draw_net(config, winner, view=True, #node_names=node_names,
+                           filename="winner-feedforward-enabled-pruned.gv", prune_unused=True)
     return env
 
+def plot_rmse_plots(networks):
+    title_font = {'fontsize': 14, 'fontweight': 'bold'}
+    label_font = {'fontsize': 14}
+    legend_fontsize = 11
+    tick_fontsize = 12
 
-def plot_velocity_mse(networks):
+    # === Create Figure and Subplots ===
+    fig, axs = plt.subplots(2, 2, figsize=(12, 8))
+    axs = axs.flatten()  # Make indexing easier
+    plot_request_list = ["max transition velocity rmse",
+                         "transition velocity rmse average force",
+                         "max steady velocity rmse",
+                         "steady velocity rmse average force",
+                         ]
+    plot_names_list = ["Max transition velocity RMSE",
+                         "Transition velocity RMSE average along force",
+                         "Max steady velocity RMSE",
+                         "Steady velocity RMSE average along force",
+                         ]
+    legend_names = [
+        "DQN, constant force trained",
+        "DQN, variable force trained",
+        "run 17",
+        "PID",
+
+    ]
+
+    for i in range(len(plot_request_list)):
+        for idx, network in enumerate(networks):
+            # mse_mat = np.array(network["steady velocity rmse"])
+            plot_request = plot_request_list[i]
+            plot_name = plot_names_list[i]
+            data_mat = np.array(network[utils.plot_info_dict[plot_request]["data"]])
+            x_data = data_mat[:, 0]
+            y_data = data_mat[:, 1]
+            # Plot results
+            # cur_network = networks[i % len(networks)]
+            if "postfix" in network.keys():
+                plot_label = network["type"] + " " + network["postfix"]
+            else:
+                plot_label = network["type"]
+            linestyle = '-'
+            if network["type"] == 'pid':
+                linestyle = '--'  # dashed line for pid for easier comparison
+            plot_label = legend_names[idx]
+            axs[i].plot(x_data, y_data, label=plot_label, linestyle=linestyle)
+            axs[i].set_title(plot_name, **title_font)
+            axs[i].set_xlabel(utils.plot_info_dict[plot_request]["xlable"], **label_font)
+            axs[i].set_ylabel(utils.plot_info_dict[plot_request]["ylable"], **label_font)
+            axs[i].tick_params(labelsize=tick_fontsize)
+            axs[i].legend(fontsize=legend_fontsize)
+            axs[i].grid()
+            axs[i].set_xlim([1, 11])
+
+    plt.tight_layout()
+    plt.show()
+
+def plot_positions(netwrosk):
+    label_fontsize = 34
+    legend_fontsize = 26
+    tick_fontsize = 28
+
+    # network[utils.plot_info_dict[plot_request]["data"]]
+    labels = ["DQN + PID", "Cascade PID"]
     plt.figure(figsize=(8, 4))
-    for network in networks:
-        mse_mat = np.array(network["velocity mse"])
-        velocity = mse_mat[:, 0]
-        mse = mse_mat[:, 1]
+    for idx, network in enumerate(networks):
+        time_vec = network["environment"].environment.simulation_data["time"]
+        instant_pos_vec = 1000 * network["environment"].environment.simulation_data["rack_pos"]
+
         # Plot results
         # cur_network = networks[i % len(networks)]
         if "postfix" in network.keys():
             plot_label = network["type"] + " " + network["postfix"]
         else:
             plot_label = network["type"]
-        linestyle = '-'
-        if network["type"] == 'pid':
-            linestyle = '--'  # dashed line for pid for easier comparison
-        plt.plot(velocity, mse, label=plot_label, linestyle=linestyle)
-
-    plt.xlabel("Desired velocity m/s")
-    plt.ylabel("Velocity MSE (m/s)^2")
-    plt.title("Velocity MSE vs desired velocity")
-    plt.legend()
+        if idx == 0:
+            plt.plot(time_vec, instant_pos_vec, label=labels[idx])  #  linestyle='dotted'
+        else:
+            plt.plot(time_vec, instant_pos_vec, label=labels[idx])
+        if idx % len(networks) == 0:
+            desired_pos_vec = 1000 * np.array(network["reference position"])
+            min_len = min(len(time_vec), len(desired_pos_vec))
+            plt.plot(time_vec[:min_len], desired_pos_vec[:min_len],
+                     label="Reference Position")
+    plt.xlabel("Time (s)", fontsize=label_fontsize)  #, label_font=label_font)
+    plt.ylabel("Rack Position (mm)", fontsize=label_fontsize)  # , label_font=label_font)
+    plt.xticks(fontsize=tick_fontsize)
+    plt.yticks(fontsize=tick_fontsize)
+    plt.title("")
+    plt.legend(fontsize=legend_fontsize, loc='upper right')
     plt.grid()
+    plt.show()
+
+def plot_networks_data(networks, plots=[]):
+    """
+
+    :param networks:
+    :param plots: options: "steady velocity mse", "steady velocity rmse", "transition velocity mse", "transition velocity rmse"
+    :return:
+    """
+
+    for plot_request in plots:
+        plt.figure(figsize=(8, 4))
+        for network in networks:
+            #mse_mat = np.array(network["steady velocity rmse"])
+            data_mat = np.array(network[utils.plot_info_dict[plot_request]["data"]])
+            x_data = data_mat[:, 0]
+            y_data = data_mat[:, 1]
+            # Plot results
+            # cur_network = networks[i % len(networks)]
+            if "postfix" in network.keys():
+                plot_label = network["type"] + " " + network["postfix"]
+            else:
+                plot_label = network["type"]
+            linestyle = '-'
+            if network["type"] == 'pid':
+                linestyle = '--'  # dashed line for pid for easier comparison
+            plt.plot(x_data, y_data, label=plot_label, linestyle=linestyle)
+
+        plt.xlabel(utils.plot_info_dict[plot_request]["xlable"])
+        plt.ylabel(utils.plot_info_dict[plot_request]["ylable"])
+        plt.title(utils.plot_info_dict[plot_request]["title"])
+        plt.legend()
+        plt.grid()
     plt.show()
 
 def plot_velocity_tracking(processed_environments):
@@ -162,6 +314,9 @@ def plot_velocity_tracking(processed_environments):
     plt.grid()
     plt.show()
 
+def plot_rack_position(rack_pos_list, desired_pos_list):
+    pass
+
 def run_pid(model_params, render_environment=True, enable_plots=False):
     print("running pid")
     pid = PID(6, 20000, 8e-5)  # PID(6, 20000, 8e-5)
@@ -178,7 +333,6 @@ def run_pid(model_params, render_environment=True, enable_plots=False):
     env = run_sim(pid, predict_func, model_params, render_environment, enable_plots)
 
     return env
-
 
 def run_sac(model_params, render_environment=True, enable_plots=False):
     print("running sac")
@@ -206,43 +360,18 @@ def run_dqn(model_params, render_environment=True, enable_plots=False):
 
     return env
 
-if __name__ == '__main__':
-    # network types: # "neat" "sac" "ppo" "pid"
-    networks = []  # list of tuples with (network type, filename, <optional> name prefix)
-    # networks.append({"type": "neat", "file": "neatsave_5kHz_70_obs_4_01_fitness_0_06_seconds_checkpoint-2932", "postfix": "4.01 fit"})
-    #networks.append({"type": "neat", "file": "neatsave_5khz_70obs_4_02_fitness_0_06_seconds_checkpoint-2750", "postfix": "4.02_fit"})
-    #networks.append({"type": "neat", "file": "neatsave_4khz_70obs_checkpoint-482_fitness_0_12351", "postfix": "4khz"})
-    # 1000000_network_03_12_25_Ming
-    # networks.append({"type": "sac", "file": "FIRST_SUCCESS_SAC_7500000_steps_0_08_setpoint"})
-    #networks.append({"type": "dqn", "file": "STABLE_0_008_setpoint_1000000_network_03_10_25_", "postfix": "stable"})
-    #networks.append({"type": "dqn", "file": "dqn_70_obs_4000_Hz_freq_1000000_network_9_68_fit", "postfix": "new"})
-    # networks.append({"type": "dqn", "file": "1000000_network_03_12_25_Ming", "postfix": "new"})
-    # networks.append({"type": "dqn", "file": "fitness_12_8_test_set_8_dqn_32_obs_4000_Hz_freq_14000000_network_03_19_25_new_new", "postfix": ""})
-    # networks.append(
-#    networks.append(
-#        {"type": "dqn", "file": "dqn_32_obs_4000_Hz_freq_56000000_steps (Copy)",
-#         "postfix": "checkpoint 56"})
-    # networks.append(
-    #     {"type": "dqn", "file": "semistable_outperformance_dqn_32_obs_4000_Hz_freq_49000000_steps",
-    #      "postfix": "full range"})
-    networks.append(
-        {"type": "dqn", "file": "semistable_outperformance_dqn_32_obs_4000_Hz_freq_97000000_steps_new",
-         "postfix": "new best"})
-    networks.append(
-        {"type": "dqn", "file": "semistable_outperformance_dqn_32_obs_4000_Hz_freq_97000000_steps_new_new",
-         "postfix": "28_03"})
-    networks.append(
-        {"type": "dqn", "file": "stable_24_8_fit_dqn_32_obs_4000_Hz_freq_30000000_steps",
-         "postfix": "2 layers x 512 units"})
+def init_network_keys(network):
+    network["steady velocity mse"] = []
+    network["steady velocity rmse"] = []
+    network["transition velocity mse"] = []
+    network["transition velocity rmse"] = []
+    network["steady velocity rmse average force"] = []
+    network["transition velocity rmse average force"] = []
+    network["max steady velocity rmse"] = []
+    network["max transition velocity rmse"] = []
 
-    networks.append({"type": "pid", "file": ""})
-    plot_comparisons = True
-    velocity_range = 0.005  # (0.005, 0.010)
-    # velocity_range = np.linspace(0.002, 0.011, 20)
-    render_environment = False
-    enable_individual_plots = False
-
-
+def run_all_networks(networks, velocity_range, force_range):
+    global external_force, velocity_setpoint, position_controllers_list, is_position_control, current_position_controller
     # --- protected part ---
     network_dict = {
         "neat": run_neat,
@@ -253,35 +382,133 @@ if __name__ == '__main__':
     processed_environments, results = [], []
     execution_time = time.time()
 
-    velocity_setpoint = None
-    if isinstance(velocity_range, float) or len(velocity_range) == 2:
+    if isinstance(velocity_range, float) or len(velocity_range) == 2 or is_position_control:
         velocity_setpoint = velocity_range
         for network in networks:
+
+            # search for the matching controller
+            for pos_controller in position_controllers_list:
+                if pos_controller["id"] == network["id"]:
+                    current_position_controller = pos_controller
+                    break
             processed_env, result = network_dict[network["type"]](network,
                                      render_environment=render_environment,
                                      enable_plots=enable_individual_plots)
             processed_environments.append(processed_env)
             results.append(result)
+            network["environment"] = processed_env
+            network["reference position"] = result["reference position"]
     else:
+        if isinstance(force_range, float):
+            force_range = [force_range]
         for velocity in velocity_range:
+            velocity_setpoint = velocity   # converting to mm/s
             for network in networks:
-                if not "velocity mse" in network.keys():
-                    network["velocity mse"] = []
-                velocity_setpoint = velocity
-                processed_env, result = network_dict[network["type"]](network,
-                                         render_environment=render_environment,
-                                         enable_plots=enable_individual_plots)
-                processed_environments.append(processed_env)
-                results.append(result)
-                network["velocity mse"].append((velocity, result["velocity mse"]))
+                if not "steady velocity mse" in network.keys():
+                    init_network_keys(network)
+                transition_rmse_sum = 0
+                steady_rmse_sum = 0
+                max_transition_rmse = 0
+                max_steady_rmse = 0
 
+                for force in force_range:
+                    external_force = force
+                    processed_env, result = network_dict[network["type"]](network,
+                                             render_environment=render_environment,
+                                             enable_plots=enable_individual_plots)
+                    processed_environments.append(processed_env)
+                    network["environment"].append(processed_env)
+                    results.append(result)
+                    mm_velocity = velocity * 1000  # converting to mm/s
+                    network["reference position"] = result["reference position"]
+                    network["steady velocity mse"].append((mm_velocity, result["steady velocity mse"]))
+                    network["steady velocity rmse"].append((mm_velocity, result["steady velocity rmse"]))
+                    network["transition velocity mse"].append((mm_velocity, result["transition velocity mse"]))
+                    network["transition velocity rmse"].append((mm_velocity, result["transition velocity rmse"]))
+                    transition_rmse_sum += result["transition velocity rmse"]
+                    steady_rmse_sum += result["steady velocity rmse"]
+                    max_transition_rmse = max(max_transition_rmse, result["transition velocity rmse"])
+                    max_steady_rmse = max(max_steady_rmse, result["steady velocity rmse"])
+
+                network["transition velocity rmse average force"].append((mm_velocity, transition_rmse_sum / len(force_range)))
+                network["steady velocity rmse average force"].append((mm_velocity, steady_rmse_sum / len(force_range)))
+                network["max steady velocity rmse"].append((mm_velocity, max_steady_rmse))
+                network["max transition velocity rmse"].append((mm_velocity, max_transition_rmse))
 
     execution_time = time.time() - execution_time
     print(f"All simulations completed in {execution_time} seconds")
 
+if __name__ == '__main__':
+    load_existing_data = False
+    save_data = False
+    # network types: # "neat" "sac" "ppo" "pid"
+    networks = []  # list of tuples with (network type, filename, <optional> name prefix)
+    position_controllers_list = []
+    # networks.append({"type": "neat", "file": "neatsave_4khz_70obs_checkpoint-482_fitness_0_12351", "postfix": "4khz"})
+    # networks.append({"type": "sac", "file": "FIRST_SUCCESS_SAC_7500000_steps_0_08_setpoint"})
+
+    networks.append(
+        {"type": "dqn", "file": "semistable_outperformance_dqn_32_obs_4000_Hz_freq_97000000_steps_new_new",
+         "postfix": "28_03, 3x256 layers", "id": 2})
+    # networks.append(
+    #     {"type": "dqn", "file": "experiment_16_dqn_32_obs_4000_Hz_freq_100000000",
+    #      "postfix": "Force optimized, 3x256 layers"})
+    # networks.append(
+    #     {"type": "dqn", "file": "run_17_dqn_32_obs_4000_Hz_freq_100000000_network_04_10_25_",
+    #      "postfix": "Run 17, 3x256 layers"})
+
+    networks.append({"type": "pid", "file": "", "id": 1})
+
+    # pid pid, "pid" = 1
+    position_controllers_list.append({"type": "position pid", "file": "", "id": 1, "kp": 27, "ki": 0, "kd": 0})
+    # dqn pid, "pid" = 2
+    position_controllers_list.append({"type": "position pid", "file": "", "id": 2, "kp": 100, "ki": 0, "kd": 0})
+
+    is_position_control = True  # toggles position / velocity control mods, global variable
+    plot_comparisons = True
+    # velocity_range = 0.005  # (0.005, 0.010)
+    velocity_range = np.linspace(0.001, 0.011, 15)
+    force_range = -2.0
+    # force_range = np.linspace(-1, -5, 7)
+    position_trajectory = []  # global variable
+    x = np.linspace(0, 2*np.pi, 8000)
+    y = (np.sin(x) + 1) / 1000
+    position_trajectory = y  # [0.001, 0.001]  #
+    render_environment = False
+    enable_individual_plots = True
+
+
+    current_position_controller: dict | None = None  # global variable
+    velocity_setpoint = None
+    external_force = force_range
+
+    data_folder = 'saved data'
+
+    # 'sine_position_dqn_vs_pid.pickle'
+    # 'data_vel_1-11_100steps_force_1-5_10steps.pickle'
+    # 'pid_only_position_step.pickle'
+    # '1mm_step_dqn_vs_pid_0_5seconds.pickle'
+    # '1mm_step_dqn_vs_pid_2_seconds.pickle'
+    data_toLoad = 'sine_position_dqn_vs_pid.pickle'
+    #data_toLoad = 'test_network_data.pickle'
+    if load_existing_data:
+        with open(os.path.join(data_folder, data_toLoad), 'rb') as handle:
+            networks = pickle.load(handle)
+    else:
+        run_all_networks(networks, velocity_range, force_range)
+        if save_data:
+            with open(os.path.join(data_folder, 'test_network_data.pickle'), 'wb') as handle:
+                pickle.dump(networks, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
     if plot_comparisons:
-        # plot_velocity_mse(networks)
-        plot_velocity_tracking(processed_environments)
+        # plot_rmse_plots(networks)
+        plot_positions(networks)
+        # plot_networks_data(networks, plots=[#"steady velocity rmse",
+        #                                     #"transition velocity rmse",
+        #                                     "steady velocity rmse average force",
+        #                                     "transition velocity rmse average force",
+        #                                     "max steady velocity rmse",
+        #                                     "max transition velocity rmse"])
+        # plot_velocity_tracking(processed_environments)
 
