@@ -50,7 +50,7 @@ e_initial = 0.05  # initial contraction
 contraction_initial = -msm_length * e_initial  # meters, value wrt to the full elongation, same as initial position of the Twin Boundary
 
 
-simulation_timestep = 2e-6  # value from matlab 5e-6  Tested timestep 3e-6
+simulation_timestep = 2e-6  # value from matlab 5e-6  Tested timestep 3e-6. ALL SIMULATIONS CARRIED WITH 2e-6
 msm_elements_cnt = 4
 
 # masses

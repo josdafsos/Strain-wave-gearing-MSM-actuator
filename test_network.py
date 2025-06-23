@@ -1,3 +1,12 @@
+"""
+    The script is used to test variety of agents controlling MSM strain wave actuator.
+    Actuators can be tested against range of forces, range of reference velocities
+    and range of reference positions, including complex reference profiles.
+    All settings are made in the corresponding section of script entry point at the bottom of the script.
+    At the same part of the code, there is also annotation in the comment which agents are currently supported.
+    Adjust make_env function for setting up a desired environment.
+"""
+
 import os
 import pickle
 
@@ -15,13 +24,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def make_env(action_discretization_cnt=None, is_sign_inversed=False):
+def make_env(action_discretization_cnt=None, is_sign_inversed=False, enable_filtering=False):
     global velocity_setpoint, external_force
     return msm_model.MSM_Environment(setpoint_limits=velocity_setpoint,
                                      force_limits=external_force,
-                                     simulation_time=2,  # 0.06
-                                     action_discretization_cnt=action_discretization_cnt,
-                                     inverse_sign_on_negative_ref=is_sign_inversed)
+                                     simulation_time=0.65,  # 0.06
+                                     action_discretization_cnt=action_discretization_cnt,  # for discrete action space
+                                     enable_action_filtering=enable_filtering,  # useful for discrete action space
+                                     inverse_sign_on_negative_ref=is_sign_inversed,
+                                     )
 
 
 def run_sim(model, predict_func, model_params, render_environment, enable_plots):
@@ -29,13 +40,18 @@ def run_sim(model, predict_func, model_params, render_environment, enable_plots)
 
 
     if model_params["type"] == "dqn":
-        env = make_env(action_discretization_cnt=20, is_sign_inversed=True)
+        env = make_env(action_discretization_cnt=20, is_sign_inversed=True, enable_filtering=True)
     else:
         env = make_env()
     obs, _ = env.reset()
     result = {}
 
     if is_position_control:
+        # if current_position_controller["id"]  == 3:  # TODO THIS IS EXTREMELY POOR HARDCODE FOR TESTING, REMOVE IT
+        #     utils.simulation_timestep = 5e-7
+        # else:
+        #     utils.simulation_timestep = 2e-6
+        print(f"current position controller: {current_position_controller}")
         pos_pid = PID(current_position_controller["kp"],
                       current_position_controller["ki"],
                       current_position_controller["kd"])  # PID(6, 20000, 8e-5)
@@ -44,7 +60,8 @@ def run_sim(model, predict_func, model_params, render_environment, enable_plots)
         pos_pid.differential_on_measurement = False
         pos_traj_idx = 0
 
-
+    action = 0
+    old_action = 0
     if render_environment:
         viewer = mujoco_viewer.MujocoViewer(env.environment.model, env.environment.data)
         viewer.cam.azimuth = 180
@@ -56,14 +73,14 @@ def run_sim(model, predict_func, model_params, render_environment, enable_plots)
             # env setpoint is updated on env.step() call, therefore there is one frame delay for the setpoint to update
             velocity_setpoint = pos_pid(control_error, dt=utils.NN_WORKING_PERIOD)
             if model_params["type"] == "dqn":
-                velocity_setpoint = min(velocity_setpoint, 0.011)  # the model was not trained for too high position reference
+                velocity_setpoint = max(min(velocity_setpoint, 0.012), -0.012)  # the model was not trained for too high position reference
 
             env.velocity_setpoint = velocity_setpoint
             pos_traj_idx += 1
             pos_traj_idx %= len(position_trajectory)  # loop the trajectory
 
-
         action = predict_func(model, env, obs)
+
         # prediction = 1
         obs, reward, terminated, truncated, info = env.step(action)
         if terminated or truncated:
@@ -114,7 +131,7 @@ def run_sim(model, predict_func, model_params, render_environment, enable_plots)
 
     if enable_plots:
         env.environment.plot_rack_instant_velocity()
-        # env.environment.plot_rack_average_velocity()
+        env.environment.plot_rack_average_velocity()
         env.environment.plot_control_value()
         if is_position_control:
             env.environment.plot_rack_position(desired_position)
@@ -224,12 +241,12 @@ def plot_rmse_plots(networks):
     plt.show()
 
 def plot_positions(netwrosk):
-    label_fontsize = 34
-    legend_fontsize = 26
-    tick_fontsize = 28
+    label_fontsize = 30  # for big screen 34
+    legend_fontsize = 22  # 26
+    tick_fontsize = 24  # 28
 
     # network[utils.plot_info_dict[plot_request]["data"]]
-    labels = ["DQN + PID", "Cascade PID"]
+    labels = ["DQN + PID", "Cascade PID", "Re-trained DQN + PID"]
     plt.figure(figsize=(8, 4))
     for idx, network in enumerate(networks):
         time_vec = network["environment"].environment.simulation_data["time"]
@@ -255,7 +272,7 @@ def plot_positions(netwrosk):
     plt.xticks(fontsize=tick_fontsize)
     plt.yticks(fontsize=tick_fontsize)
     plt.title("")
-    plt.legend(fontsize=legend_fontsize, loc='upper right')
+    plt.legend(fontsize=legend_fontsize, loc='lower right')  # 'upper right'
     plt.grid()
     plt.show()
 
@@ -390,6 +407,7 @@ def run_all_networks(networks, velocity_range, force_range):
             for pos_controller in position_controllers_list:
                 if pos_controller["id"] == network["id"]:
                     current_position_controller = pos_controller
+
                     break
             processed_env, result = network_dict[network["type"]](network,
                                      render_environment=render_environment,
@@ -406,6 +424,8 @@ def run_all_networks(networks, velocity_range, force_range):
             for network in networks:
                 if not "steady velocity mse" in network.keys():
                     init_network_keys(network)
+                if not "environment" in network.keys():
+                    network["environment"] = []
                 transition_rmse_sum = 0
                 steady_rmse_sum = 0
                 max_transition_rmse = 0
@@ -438,18 +458,24 @@ def run_all_networks(networks, velocity_range, force_range):
     execution_time = time.time() - execution_time
     print(f"All simulations completed in {execution_time} seconds")
 
+
 if __name__ == '__main__':
+    # --- manual settings ---
     load_existing_data = False
+    data_to_load = 'sine_position_dqn_vs_pid.pickle'
     save_data = False
+    is_position_control = False  # toggles position / velocity control mods, global variable
+    plot_comparisons = True
+    render_environment = False
+    enable_individual_plots = True
+
+    # --- agents ---
     # network types: # "neat" "sac" "ppo" "pid"
     networks = []  # list of tuples with (network type, filename, <optional> name prefix)
     position_controllers_list = []
     # networks.append({"type": "neat", "file": "neatsave_4khz_70obs_checkpoint-482_fitness_0_12351", "postfix": "4khz"})
     # networks.append({"type": "sac", "file": "FIRST_SUCCESS_SAC_7500000_steps_0_08_setpoint"})
-
-    networks.append(
-        {"type": "dqn", "file": "semistable_outperformance_dqn_32_obs_4000_Hz_freq_97000000_steps_new_new",
-         "postfix": "28_03, 3x256 layers", "id": 2})
+    networks.append({"type": "sac", "file": "sac_32_obs_4000_Hz_freq_13000000_network_06_22_25_experiment_8"})
     # networks.append(
     #     {"type": "dqn", "file": "experiment_16_dqn_32_obs_4000_Hz_freq_100000000",
     #      "postfix": "Force optimized, 3x256 layers"})
@@ -457,42 +483,55 @@ if __name__ == '__main__':
     #     {"type": "dqn", "file": "run_17_dqn_32_obs_4000_Hz_freq_100000000_network_04_10_25_",
     #      "postfix": "Run 17, 3x256 layers"})
 
-    networks.append({"type": "pid", "file": "", "id": 1})
+    # networks.append(
+    #     {"type": "dqn", "file": "semistable_outperformance_dqn_32_obs_4000_Hz_freq_97000000_steps_new_new",
+    #      "postfix": "28_03, 3x256 layers", "id": 2})
+
+    # networks.append({"type": "pid", "file": "", "id": 1})
+
+    # networks.append(
+    #     {"type": "dqn", "file": "zero_vel_best_dqn_32_obs_4000_Hz_freq_158000000_steps",
+    #      "postfix": "zero vel, 3x256 layers", "id": 3})
+    # networks.append(
+    #     {"type": "dqn", "file": "20_zero_vel_best_dqn_32_obs_4000_Hz_freq_97000000_steps_3e6_steps",
+    #      "postfix": "zero vel 1e6, 3x256 layers", "id": 4})
+    # networks.append(
+    #     {"type": "dqn", "file": "run_20_best_dqn_32_obs_4000_Hz_freq_167000000_steps",
+    #      "postfix": "correct zero vel 1e7, 3x256 layers", "id": 4})
 
     # pid pid, "pid" = 1
-    position_controllers_list.append({"type": "position pid", "file": "", "id": 1, "kp": 27, "ki": 0, "kd": 0})
+    position_controllers_list.append({"type": "position pid", "file": "", "id": 1, "kp": 27, "ki": 0, "kd": 0})  # original 27 0 0
     # dqn pid, "pid" = 2
-    position_controllers_list.append({"type": "position pid", "file": "", "id": 2, "kp": 100, "ki": 0, "kd": 0})
+    position_controllers_list.append({"type": "position pid", "file": "", "id": 2, "kp": 100, "ki": 0, "kd": 0}) # worked well with 40 # in original plot "kp": 100, "ki": 0, "kd": 0
+    # zero dqn pid
+    position_controllers_list.append({"type": "position pid", "file": "", "id": 3, "kp": 60, "ki": 0, "kd": 0})  # kinda good p50, i2, d1e-4
+    # run 20 zero dqn pid
+    position_controllers_list.append({"type": "position pid", "file": "", "id": 4, "kp": 100, "ki": 0, "kd": 0})
 
-    is_position_control = True  # toggles position / velocity control mods, global variable
-    plot_comparisons = True
+    # --- reference velocity and position settings ---
     # velocity_range = 0.005  # (0.005, 0.010)
-    velocity_range = np.linspace(0.001, 0.011, 15)
+    velocity_range = np.linspace(0.001, 0.011, 3)
     force_range = -2.0
     # force_range = np.linspace(-1, -5, 7)
     position_trajectory = []  # global variable
     x = np.linspace(0, 2*np.pi, 8000)
     y = (np.sin(x) + 1) / 1000
-    position_trajectory = y  # [0.001, 0.001]  #
-    render_environment = False
-    enable_individual_plots = True
-
+    position_trajectory = [0.001, 0.001]  # y  #
+    # --- end of settings ---
 
     current_position_controller: dict | None = None  # global variable
     velocity_setpoint = None
     external_force = force_range
-
-    data_folder = 'saved data'
+    data_folder = 'saved data'  # folder to which processed data is saved
 
     # 'sine_position_dqn_vs_pid.pickle'
     # 'data_vel_1-11_100steps_force_1-5_10steps.pickle'
     # 'pid_only_position_step.pickle'
     # '1mm_step_dqn_vs_pid_0_5seconds.pickle'
     # '1mm_step_dqn_vs_pid_2_seconds.pickle'
-    data_toLoad = 'sine_position_dqn_vs_pid.pickle'
-    #data_toLoad = 'test_network_data.pickle'
+
     if load_existing_data:
-        with open(os.path.join(data_folder, data_toLoad), 'rb') as handle:
+        with open(os.path.join(data_folder, data_to_load), 'rb') as handle:
             networks = pickle.load(handle)
     else:
         run_all_networks(networks, velocity_range, force_range)
@@ -500,15 +539,14 @@ if __name__ == '__main__':
             with open(os.path.join(data_folder, 'test_network_data.pickle'), 'wb') as handle:
                 pickle.dump(networks, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-
     if plot_comparisons:
         # plot_rmse_plots(networks)
-        plot_positions(networks)
-        # plot_networks_data(networks, plots=[#"steady velocity rmse",
-        #                                     #"transition velocity rmse",
-        #                                     "steady velocity rmse average force",
-        #                                     "transition velocity rmse average force",
-        #                                     "max steady velocity rmse",
-        #                                     "max transition velocity rmse"])
+        # plot_positions(networks)
+        plot_networks_data(networks, plots=[#"steady velocity rmse",
+                                            #"transition velocity rmse",
+                                            "steady velocity rmse average force",
+                                            "transition velocity rmse average force",
+                                            "max steady velocity rmse",
+                                            "max transition velocity rmse"])
         # plot_velocity_tracking(processed_environments)
 

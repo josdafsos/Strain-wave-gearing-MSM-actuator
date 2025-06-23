@@ -208,7 +208,7 @@ class MSMLinear():
             "range": "-2 2",
             "frictionloss": str(utils.rack_static_friction),
             "solimpfriction": "0.95 0.9999 0.001 0.1 2",
-            "solreffriction": "0.000075 0.030",
+            "solreffriction": "0.000075 0.030",  # tested everything with "0.000075 0.030"
         })
         tooth_plate_profile = self.tooth_profile_mat.copy()
         tooth_plate_profile[2, :] = -tooth_plate_profile[2, :]
@@ -585,7 +585,7 @@ class MSMLinear():
             plt.plot(time_vec, desired_vel_vec, label="Desired Velocity, m/s")
         plt.xlabel("Time (s)")
         plt.ylabel("Average Velocity")
-        plt.title("Joint Position Over Time")
+        plt.title("Rack average velocity over Time")
         plt.legend()
         plt.grid()
         plt.show()
@@ -648,7 +648,8 @@ class MSM_Environment(gym.Env):
                  simulation_time: float = 0.05,
                  action_discretization_cnt: int | None = None,
                  inverse_sign_on_negative_ref=False,
-                 zero_setpoint_probability: float = 0.0):
+                 zero_setpoint_probability: float = 0.0,
+                 enable_action_filtering: bool = False):
         """
 
         :param return_observation_sequence: If True a stacked frame of observations is returned
@@ -665,8 +666,10 @@ class MSM_Environment(gym.Env):
         on negative reference velocity value. Allows models working in [0 1] output range to work in the opposite direction
         :param zero_setpoint_probability chance the velocity set point will be set to 0 and a random force will be applied.
         Used to train an agent to hold position
+        :param enable_action_filtering if True, applies mean filter for several last actions, including the current prediction.
+        Used in case of smothering of discrete action steps is needed
         """
-        # TODO implement inverse_sign_on_negative_ref
+
         super().__init__()
 
         self.action_discretization_cnt = action_discretization_cnt
@@ -692,6 +695,7 @@ class MSM_Environment(gym.Env):
         self.setpoint_limits = setpoint_limits
         self.inverse_sign_on_negative_ref = inverse_sign_on_negative_ref
         self.zero_setpoint_probability = zero_setpoint_probability
+        self.enable_action_filtering = enable_action_filtering
 
         msg = ""
         if not isinstance(self.setpoint_limits, float):
@@ -723,6 +727,9 @@ class MSM_Environment(gym.Env):
             msg += f"; Random force option set in range [{self.force_limits[0]}, {self.force_limits[1]}] N"
             if self.force_limits[0] > 0 or self.force_limits[1] > 0:
                 msg += "; NOTE: FORCE VALUE CAN BE POSITIVE, IT ACTS TOWARDS THE DESIRED VELOCITY DIRECTION"
+
+        if self.enable_action_filtering:
+            msg += "; NOTE: Action filtering is enabled"
 
         print(msg)
 
@@ -777,6 +784,11 @@ class MSM_Environment(gym.Env):
         if self.inverse_sign_on_negative_ref and self.velocity_setpoint < 0:
             action = -1 * action
 
+        if self.enable_action_filtering:
+            tmp = np.array([action,])
+            action = np.mean(np.hstack([tmp,  self.environment.simulation_data["control_value"][-3:]]))  # 3 works well for the original DQN agent
+
+
         self.environment.sim_step(action)
         self.environment.collect_velocity_setpoint(self.velocity_setpoint)  # duplicating self.velocity_setpoint_list
         observation = self._get_observation()
@@ -819,15 +831,18 @@ class MSM_Environment(gym.Env):
         else:
             self.environment.set_rack_load(self.force_limits)
 
-        if self.zero_setpoint_probability > 1e-4:
-            self.velocity_setpoint = 0.0
-            new_force = -(random.random() * 5 + 1.0)
-            self.environment.set_rack_load(new_force)
+        if self.zero_setpoint_probability > 1e-4:  # first check is a non-zero validation
+            if random.random() < self.zero_setpoint_probability:
+                self.velocity_setpoint = 0.0
+                new_force = -(random.random() * 5 + 1.0)
+                self.environment.set_rack_load(new_force)
 
         observation = self._get_observation()
         self.environment.collect_velocity_setpoint(self.velocity_setpoint)  # duplicating self.velocity_setpoint_list
 
-        avg_reward = self.total_reward / self.cur_step
+        #avg_reward = self.total_reward / self.cur_step
+        # it turned out to be not convenient to measure mean reward per episode. The total reward is easier to operate with
+        avg_reward = self.total_reward
 
         self.episode_reward_list = np.append(self.episode_reward_list, avg_reward)
 

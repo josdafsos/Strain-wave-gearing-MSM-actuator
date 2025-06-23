@@ -6,6 +6,7 @@ from sb3_contrib import RecurrentPPO, ARS
 from stable_baselines3 import PPO, SAC, DQN, TD3
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecMonitor
 from stable_baselines3.common import results_plotter
+from stable_baselines3.common.noise import NormalActionNoise
 from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback, EvalCallback, CallbackList
 import os
 import mujoco_viewer
@@ -13,7 +14,6 @@ import torch
 from datetime import datetime
 import matplotlib.pyplot as plt
 import gymnasium as gym
-
 
 import utils
 
@@ -30,15 +30,16 @@ class RewardLoggerCallback(BaseCallback):
         return True
 
 
-
 def make_env():
     global reward_log_list, log_dir
     # if Monitor class is used, access environment via env.get_env()
     # return gym.make('CartPole-v1')
     return msm_model.MSM_Environment(simulation_time=0.06,
-                                     setpoint_limits=(0.000, 0.012),
-                                     action_discretization_cnt=20,
-                                     zero_setpoint_probability=0.3)
+                                     setpoint_limits=(0.003, 0.012),
+                                     # action_discretization_cnt=20,  # used for discrete output agents
+                                     enable_action_filtering=False,  # can be set to True for discrete output agents for better performance
+                                     #zero_setpoint_probability=0.01,
+                                     )
     # return Monitor(msm_model.MSM_Environment(randomize_setpoint=True), log_dir)
 
 def plot_rewards_history(vec_env):
@@ -52,9 +53,13 @@ def plot_rewards_history(vec_env):
     mean_rewards = np.mean(rewards, axis=1)
     mean_rewards = mean_rewards[1:]
     reward_steps = [i for i in range(len(mean_rewards))]
+    max_rew = np.max(reward_matrix)
+    mean_rew = np.mean(reward_matrix)
+    print(f"Training average reward: {mean_rew}, max reward {max_rew}")
 
     plt.figure(figsize=(10, 5))
     plt.plot(reward_steps, mean_rewards)
+    plt.axhline(y=mean_rew, color='r', linestyle='--', linewidth=1)
     plt.xlabel("Episodes x Number of Cores")
     plt.ylabel("Average reward per episode set")
     plt.title("Reward history")
@@ -113,9 +118,8 @@ def get_ppo_model(model_name, vec_env, device, learning_rate):
 
 def get_sac_model(model_name, vec_env, device, learning_rate):
     policy_kwargs = dict(
-        net_arch=dict(pi=[256, 256],
-                      # vf=[256]),
-                      qf=[256]),  # hidden layers with VALUE neurons each
+        net_arch=dict(pi=[256, 256, ],
+                      qf=[256, 256, 256]),  # hidden layers with VALUE neurons each
         # activation_fn=torch.nn.ReLU
         activation_fn=torch.nn.ELU
     )
@@ -126,12 +130,27 @@ def get_sac_model(model_name, vec_env, device, learning_rate):
                     device=device,
                     learning_rate=learning_rate,
                     policy_kwargs=policy_kwargs,
-                    batch_size=64,
+                    # action_noise=NormalActionNoise(np.array([0.0]),  # mu
+                    #                                np.array([0.2])),  # sigma
+                    batch_size=256,
+                    gradient_steps=1,
                     verbose=1)
+        """
+        Note: the constructor also has ent_coef param responsible for exploration, defaul is 'auto' for learning it
+        automatically.
+        ent_coef(str | float) – Entropy regularization coefficient.(Equivalent to inverse of reward scale in the 
+        original SAC paper.) Controlling exploration / exploitation trade - off.Set it to ‘auto’ to learn it
+        automatically( and ‘auto_0.1’ for using 0.1 as initial value)
+        
+        The constructor also has several SDE-related params (also used for exploration)
+        use_sde (bool) – Whether to use generalized State Dependent Exploration (gSDE) instead of action noise 
+        exploration (default: False)
+        See other SDE params from the docs https://stable-baselines3.readthedocs.io/en/master/modules/sac.html
+        """
     else:
         print("Loading SAC model for training")
         custom_objects = {'learning_rate': learning_rate}
-        model = TD3.load(os.path.join('sb_neural_networks', 'td3', model_name), vec_env, custom_objects=custom_objects)
+        model = SAC.load(os.path.join('sb_neural_networks', 'sac', model_name), vec_env, custom_objects=custom_objects)
         model.set_env(vec_env)
     return model
 
@@ -164,11 +183,10 @@ if __name__ == '__main__':
     # TODO try TD3 (or an older version DDPG)
     # TODO try TRPO
     # TODO at a new tooth engagement, there is an unrealistic oscillations. Try to adjust sim parameters to avoid this effect
-    # TODO add action noise to parametrs if it is possible with a policy
 
     model_name = ""  # leave empty if a new model must be trained
-    model_name = "best_dqn_32_obs_4000_Hz_freq_97000000_steps"
-    model_type = "dqn"  # sac, ppo,
+    # model_name = "sac_32_obs_4000_Hz_freq_10000000_network_06_22_25_experiment_8.zip"
+    model_type = "sac"  # sac, ppo,dqn
 
     model_dict = {
         "sac": get_sac_model,  # difficult to train, possible to reach controllability with relatively high error
@@ -185,7 +203,7 @@ if __name__ == '__main__':
     print(f"Current device: {device}")
 
     log_dir = 'logs'
-    learning_rate = 1e-6  # 1e-9 not yet tested; 1e-8 not working well
+    learning_rate = 5e-5
 
 
     env = make_env()
@@ -194,7 +212,7 @@ if __name__ == '__main__':
     num_envs = 30  # Number of parallel environments
     vec_env = SubprocVecEnv([make_env for _ in range(num_envs)])  # Or use DummyVecEnv([make_env])
     vec_env = VecMonitor(vec_env)
-    timesteps = int(3e6)
+    timesteps = int(1e5)
     if num_envs == 1:
         vec_env = env
     """

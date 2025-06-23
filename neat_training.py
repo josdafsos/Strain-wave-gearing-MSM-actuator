@@ -7,10 +7,13 @@ import msm_model
 import numpy as np
 import utils
 
-runs_per_net = 4
+runs_per_net = 3
 
 def make_env(action_discretization_cnt=None):
-    return msm_model.MSM_Environment(setpoint_limits=(0.001, 0.012), force_limits=(1, 10), simulation_time=0.20, action_discretization_cnt=action_discretization_cnt)
+    return msm_model.MSM_Environment(setpoint_limits=(0.003, 0.012),
+                                     #force_limits=(1, 10),
+                                     simulation_time=0.05,
+                                     )
 
 
 # Use the NN network phenotype and the discrete actuator force function.

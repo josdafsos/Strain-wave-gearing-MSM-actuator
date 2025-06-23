@@ -158,3 +158,79 @@ converged after 6e+7 steps, average reward around 22.0
     )
 
 Converged After 30% of steps. average reward around 23.5
+
+19. "best_dqn_32_obs_4000_Hz_freq_97000000_steps" was trained for 1e+6 steps with 3% chance of zero velocity set point and
+for other 97% set point was in [0.000, 0.012] m/s range.
+Reward changed from 11.7 to around 22.5 (under new conditions), oscillations have smaller frequency, but the positioning error higher than the benchmark DQN + PID
+
+20. Retraining same as in 19. 1e+7 steps, RL 1e-6
+Converged at about 20% of the steps, mean reward around 26.0
+
+------------------------------------
+Training SAC
+------------------------------------
+
+
+1.         net_arch=dict(pi=[256, 256],
+                      qf=[256, 256]),  # hidden layers with VALUE neurons each
+                        activation_fn=torch.nn.ELU)
+        Batch size=256, other settings are default
+
+        LR = 1e-6, Steps 3e6
+        Converging to average reward of 3.5
+
+2. Added action noise                     action_noise=NormalActionNoise(np.array([0.0]),  # mu
+                                                   np.array([0.1])),  # sigma
+       Critic topology changed to match DQN critic topology
+       policy_kwargs = dict(
+        net_arch=dict(pi=[256, 256],
+                      qf=[256, 256, 256]),  # hidden layers with VALUE neurons each
+        activation_fn=torch.nn.ELU
+
+        LR = 1e-7, Steps 3e6
+        Reward converged to around 3.9
+
+ 2.1 Tested other noise values, they do not seem to help at all, thus noise is excluded (exploration in SAC is achieved by entropy anyway)
+
+3. No action noise, same topology as in 2. LR=1e-3. Reward reached 12.5, not converged
+continued for 1e6 steps, reward improved to 13.3 and converged
+continued for 1e6 steps, RL=1e-4 reward improved to 15.8 and converged
+continued for 1e6 steps, RL=1e-5 reward improved to 16.4 and converged, peak at 17.2
+continued for 1e6 steps, RL=5e-5 reward degraded
+
+4. Simplified Actor architecture
+    policy_kwargs = dict(
+        net_arch=dict(pi=[256, ],
+                      qf=[256, 256, 256]),  # hidden layers with VALUE neurons each
+        activation_fn=torch.nn.ELU)
+    LR=1e-4 for 3e6 steps, reward 6.3, not converged. Requires a lot of time to converge
+
+5. Changed Actor architecture:
+    policy_kwargs = dict(
+        net_arch=dict(pi=[128, 128],
+                      qf=[256, 256,]),  # hidden layers with VALUE neurons each
+        activation_fn=torch.nn.ELU)
+    RL=3e-4, Steps =3e6. Reward converged to 6.8
+
+6. More complex topology
+        net_arch=dict(pi=[256, 256, 256],
+                      qf=[256, 256, 256])
+  RL=1e-3, 3e6 steps. Seems to converge around 11.0
+  Continued for 3e6 steps, LR=1e-4. Reward converged around 12.0
+
+  Run for 3e7 steps, LR=1e-5, reward oscillates around 13.0 (converged), peak was around 16.0
+
+7. New topology, LR =1e-5
+  policy_kwargs = dict(
+        net_arch=dict(pi=[256, 256, ],
+                      qf=[256, 256, 256]),  # hidden layers with VALUE neurons each
+        # activation_fn=torch.nn.ReLU
+        activation_fn=torch.nn.ELU
+    )
+  1e+7 steps, reward 3.0, converged
+
+8. Same topology as in 7.
+gradient_steps=-1 (max grad steps), learning_rate = 5e-5, Steps 1e7,
+Reward is growing very slowly with high std, peak reached 19.8, but mean is around 15.5
+
+Continued training for 3e6 steps. Very slow reward growth. Peak at 20.0, average is approximately same
