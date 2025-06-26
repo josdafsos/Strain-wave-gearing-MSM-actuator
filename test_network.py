@@ -12,7 +12,7 @@ import pickle
 
 import neat
 from simple_pid import PID
-from stable_baselines3 import SAC, DQN
+from stable_baselines3 import SAC, DQN, PPO
 import visualize
 import msm_model
 import mujoco_viewer
@@ -28,7 +28,7 @@ def make_env(action_discretization_cnt=None, is_sign_inversed=False, enable_filt
     global velocity_setpoint, external_force
     return msm_model.MSM_Environment(setpoint_limits=velocity_setpoint,
                                      force_limits=external_force,
-                                     simulation_time=0.65,  # 0.06
+                                     simulation_time=0.60,  # 0.06
                                      action_discretization_cnt=action_discretization_cnt,  # for discrete action space
                                      enable_action_filtering=enable_filtering,  # useful for discrete action space
                                      inverse_sign_on_negative_ref=is_sign_inversed,
@@ -183,6 +183,14 @@ def run_neat(model_params, render_environment=True, enable_plots=False):
                            filename="winner-feedforward-enabled-pruned.gv", prune_unused=True)
     return env
 
+def preprocess_netwroks(networks):
+    """
+        Function to standartise existing networks
+    """
+    for idx, network in enumerate(networks):
+        if not "postfix" in network.keys():
+            network["posfix"] = ""
+
 def plot_rmse_plots(networks):
     title_font = {'fontsize': 14, 'fontweight': 'bold'}
     label_font = {'fontsize': 14}
@@ -202,13 +210,13 @@ def plot_rmse_plots(networks):
                          "Max steady velocity RMSE",
                          "Steady velocity RMSE average along force",
                          ]
-    legend_names = [
-        "DQN, constant force trained",
-        "DQN, variable force trained",
-        "run 17",
-        "PID",
-
-    ]
+    # legend_names = [
+    #     "DQN, constant force trained",
+    #     "DQN, variable force trained",
+    #     "run 17",
+    #     "PID",
+    # ]
+    legend_names = [network["type"] + " " + network["postfix"] for idx, network in enumerate(networks)]
 
     for i in range(len(plot_request_list)):
         for idx, network in enumerate(networks):
@@ -364,6 +372,19 @@ def run_sac(model_params, render_environment=True, enable_plots=False):
 
     return env
 
+def run_ppo(model_params, render_environment=True, enable_plots=False):
+    print("running ppo")
+    model_name = model_params["file"]
+    model = PPO.load(os.path.join('sb_neural_networks', "ppo", model_name))
+
+    def predict_func(model, env, obs):
+        action, _states = model.predict(obs)
+        return action
+
+    env = run_sim(model, predict_func, model_params, render_environment, enable_plots)
+
+    return env
+
 def run_dqn(model_params, render_environment=True, enable_plots=False):
     print("running dqn")
     model_name = model_params["file"]
@@ -395,6 +416,7 @@ def run_all_networks(networks, velocity_range, force_range):
         "pid": run_pid,
         "sac": run_sac,
         "dqn": run_dqn,
+        "ppo": run_ppo,
     }
     processed_environments, results = [], []
     execution_time = time.time()
@@ -467,7 +489,7 @@ if __name__ == '__main__':
     is_position_control = False  # toggles position / velocity control mods, global variable
     plot_comparisons = True
     render_environment = False
-    enable_individual_plots = True
+    enable_individual_plots = False
 
     # --- agents ---
     # network types: # "neat" "sac" "ppo" "pid"
@@ -475,19 +497,21 @@ if __name__ == '__main__':
     position_controllers_list = []
     # networks.append({"type": "neat", "file": "neatsave_4khz_70obs_checkpoint-482_fitness_0_12351", "postfix": "4khz"})
     # networks.append({"type": "sac", "file": "FIRST_SUCCESS_SAC_7500000_steps_0_08_setpoint"})
-    networks.append({"type": "sac", "file": "sac_32_obs_4000_Hz_freq_13000000_network_06_22_25_experiment_8"})
+    # networks.append({"type": "sac", "file": "sac_32_obs_4000_Hz_freq_13000000_network_06_22_25_experiment_8"})
+    networks.append({"type": "ppo", "file": "ppo_32_obs_4000_Hz_freq_83000000_network_06_23_25"})
+
     # networks.append(
     #     {"type": "dqn", "file": "experiment_16_dqn_32_obs_4000_Hz_freq_100000000",
     #      "postfix": "Force optimized, 3x256 layers"})
-    # networks.append(
-    #     {"type": "dqn", "file": "run_17_dqn_32_obs_4000_Hz_freq_100000000_network_04_10_25_",
-    #      "postfix": "Run 17, 3x256 layers"})
+    networks.append(
+        {"type": "dqn", "file": "run_17_dqn_32_obs_4000_Hz_freq_100000000_network_04_10_25_",
+         "postfix": "Run 17, 3x256 layers"})
 
     # networks.append(
     #     {"type": "dqn", "file": "semistable_outperformance_dqn_32_obs_4000_Hz_freq_97000000_steps_new_new",
     #      "postfix": "28_03, 3x256 layers", "id": 2})
 
-    # networks.append({"type": "pid", "file": "", "id": 1})
+    networks.append({"type": "pid", "file": "", "id": 1})
 
     # networks.append(
     #     {"type": "dqn", "file": "zero_vel_best_dqn_32_obs_4000_Hz_freq_158000000_steps",
@@ -523,6 +547,7 @@ if __name__ == '__main__':
     velocity_setpoint = None
     external_force = force_range
     data_folder = 'saved data'  # folder to which processed data is saved
+    preprocess_netwroks(networks)
 
     # 'sine_position_dqn_vs_pid.pickle'
     # 'data_vel_1-11_100steps_force_1-5_10steps.pickle'

@@ -53,9 +53,18 @@ def plot_rewards_history(vec_env):
     mean_rewards = np.mean(rewards, axis=1)
     mean_rewards = mean_rewards[1:]
     reward_steps = [i for i in range(len(mean_rewards))]
+
+
     max_rew = np.max(reward_matrix)
     mean_rew = np.mean(reward_matrix)
-    print(f"Training average reward: {mean_rew}, max reward {max_rew}")
+
+    total_records = rewards.flatten().shape[0]
+    averaging_length_50 = min(50, total_records)
+    averaging_length_100 = min(100, total_records)
+    mean_50_rew = np.mean(rewards.flatten()[-averaging_length_50:])  # average reward of 50 last episodes
+    mean_100_rew = np.mean(rewards.flatten()[-averaging_length_100:])  # average reward of 100 last episodes
+    print(f"Training average reward: {mean_rew}, max reward {max_rew}, \n"
+          f"average reward of last 50 episodes: {mean_50_rew}, average reward of last 100 episodes: {mean_100_rew}")
 
     plt.figure(figsize=(10, 5))
     plt.plot(reward_steps, mean_rewards)
@@ -91,10 +100,32 @@ def get_dqn_model(model_name, vec_env, device, learning_rate):
         model.set_env(vec_env)
     return model
 
+def get_ars_model(model_name, vec_env, device, learning_rate):
+    # NOTE! for ARS an async evaluation environment can be implemented
+    policy_kwargs = dict(
+        net_arch=[256, ],  # hidden layers with VALUE neurons each
+        activation_fn=torch.nn.ELU
+    )
+
+    if model_name == "":
+        print("creating new ARS model")
+        model = ARS("MlpPolicy",  # some extra parameters can be adjusted
+                    vec_env,
+                    device=device,
+                    learning_rate=learning_rate,
+                    policy_kwargs=policy_kwargs,
+                    verbose=1,)
+    else:
+        print("Loading ARS model for training")
+        custom_objects = {'learning_rate': learning_rate}
+        model = DQN.load(os.path.join('sb_neural_networks', 'ars', model_name), vec_env, custom_objects=custom_objects)
+        model.set_env(vec_env)
+    return model
+
 def get_ppo_model(model_name, vec_env, device, learning_rate):
     policy_kwargs = dict(
         net_arch=dict(pi=[256, 256],
-                      vf=[256]),  # hidden layers with VALUE neurons each
+                      vf=[256, 256]),  # hidden layers with VALUE neurons each
         # activation_fn=torch.nn.ReLU
         activation_fn=torch.nn.ELU
     )
@@ -102,13 +133,14 @@ def get_ppo_model(model_name, vec_env, device, learning_rate):
     if model_name == "":
         print("creating new PPO model")
         model = PPO("MlpPolicy",
-                   vec_env,
-                   device=device,
-                   learning_rate=learning_rate,
-                   policy_kwargs=policy_kwargs,
-                   batch_size=256,
-                   n_steps=4096,
-                   verbose=1)
+                    vec_env,
+                    device='cpu',  # device, # recommended by the library
+                    learning_rate=learning_rate,
+                    policy_kwargs=policy_kwargs,
+                    batch_size=256,
+                    use_sde=False,  # TODO try this param to be True
+                    # n_steps=4096,
+                    verbose=1)
     else:
         print("Loading PPO model for training")
         custom_objects = {'learning_rate': learning_rate}
@@ -180,19 +212,24 @@ def get_td3_model(model_name, vec_env, device, learning_rate):
 
 if __name__ == '__main__':
 
-    # TODO try TD3 (or an older version DDPG)
-    # TODO try TRPO
+    # TODO priority, try RAS and probably use behaviour clonning from trained DQN agent to get initial RAS agent
+    # TODO PPO with gSDE, it is benchmarked to perform significantly better!
     # TODO at a new tooth engagement, there is an unrealistic oscillations. Try to adjust sim parameters to avoid this effect
 
     model_name = ""  # leave empty if a new model must be trained
-    # model_name = "sac_32_obs_4000_Hz_freq_10000000_network_06_22_25_experiment_8.zip"
-    model_type = "sac"  # sac, ppo,dqn
+    # model_name = "ppo_32_obs_4000_Hz_freq_83000000_network_06_23_25"
+    model_type = "ars"  # sac, ppo,dqn
+
+    learning_rate = 5e-5
+    timesteps = int(2e7)
+    num_envs = 30  # Number of parallel environments
 
     model_dict = {
         "sac": get_sac_model,  # difficult to train, possible to reach controllability with relatively high error
         "ppo": get_ppo_model,
         "dqn": get_dqn_model,  # dqn (can control with relatively high error)
         "td3": get_td3_model,  # td3 (does not learn)
+        "ars": get_ars_model,
     }
 
     if hasattr(torch, 'accelerator') and torch.accelerator.is_available():
@@ -203,26 +240,19 @@ if __name__ == '__main__':
     print(f"Current device: {device}")
 
     log_dir = 'logs'
-    learning_rate = 5e-5
-
-
     env = make_env()
 
     # Vectorized environment setup
-    num_envs = 30  # Number of parallel environments
     vec_env = SubprocVecEnv([make_env for _ in range(num_envs)])  # Or use DummyVecEnv([make_env])
     vec_env = VecMonitor(vec_env)
-    timesteps = int(1e5)
     if num_envs == 1:
         vec_env = env
     """
     if model_name == "":
         # model = RecurrentPPO("MlpLstmPolicy", vec_env, learning_rate=1e-3, verbose=1)  # instead use normal PPO with frame stacking
-        # model = ARS("MlpPolicy", vec_env, device=device,learning_rate=learning_rate, policy_kwargs=policy_kwargs, verbose=1)
     """
 
     model = model_dict[model_type](model_name, vec_env, device, learning_rate)
-
     obs_cnt = env.total_obs_cnt
 
     # callback settings

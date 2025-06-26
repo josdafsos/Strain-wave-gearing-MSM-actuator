@@ -234,3 +234,66 @@ gradient_steps=-1 (max grad steps), learning_rate = 5e-5, Steps 1e7,
 Reward is growing very slowly with high std, peak reached 19.8, but mean is around 15.5
 
 Continued training for 3e6 steps. Very slow reward growth. Peak at 20.0, average is approximately same
+Continued training for 1e7 steps. Almost zero reward growth. average reward: 15.903599442236368, max reward 37.133957375030995
+Continued training for 1e7 steps. learning rate = 1e-4, interrupted due to electricity shortage. Training continued for a checkpoint 2.7e7 steps
+    Reward does not seem to improve, training stopped at 3e7 steps (in total)
+Continued training for 1e7 steps. learning rate = 5e-6 for 1e7 steps. Does not improve, average reward: 16.19728675637543, max reward 36.761425061808694
+
+
+-------------------
+PPO
+------------------
+
+1. Topology:
+    policy_kwargs = dict(
+        net_arch=dict(pi=[256, 256],
+                      vf=[256, 256]),  # hidden layers with VALUE neurons each
+        activation_fn=torch.nn.ELU)
+    LR=1e-4, steps 3e6
+    average reward: 3.5211409120647077, max reward 10.820091166604549
+Training continued for 1e7 steps, average reward around 16.0, max reward 30.048388114774944
+    Close to converged, but the std increases
+Training continued for 1e7 steps, average reward around 16.5 and continues to grow very slowly, max reward 32.3
+Training continued for 1e7 steps, learning rate 5e-5, average reward: 17.421475309447782,
+    max reward 32.93910687707977, average reward of last 50 episodes: 18.942243088774802. Does not seem to grow more
+Training continued for 1e7 steps, Reward is slowly growing:
+    average reward: 18.423185750008102, max reward 33.7726716039963,
+    average reward of last 50 episodes: 17.918488681419905, average reward of last 100 episodes: 18.016689096436295'
+Training continued for 2e7 steps, Training average reward: 19.09231305002733, max reward 34.8552864943136,
+average reward of last 50 episodes: 18.72095916474925, average reward of last 100 episodes: 19.049946357760856
+Does not seem to improve much from the plot
+Training continued for 2e7 steps, learning rate = 2e-4, the performance is degraded a bit, thus the results are not saved
+    average reward: 18.265675284582116, max reward 33.21308569535324,
+    average reward of last 50 episodes: 17.555606447219542, average reward of last 100 episodes: 17.60330815446791
+Training continued for 2e7 steps, learning rate = 1e-5. Slight improvement: average reward: 19.553579082170923, max reward 34.46095324131353,
+    average reward of last 50 episodes: 20.78542312846633, average reward of last 100 episodes: 20.80684074885276
+Training continued for 2e7 steps, Not improved, the results are not included
+Training continued for 3e7 steps,learning rate = 5e-6, average reward: 19.513774067004697, max reward 34.18092251254129,
+    average reward of last 50 episodes: 19.800673620696948, average reward of last 100 episodes: 19.048275486764823
+    Performance slightly degraded
+Retraining last episode for 2e7 steps, learning rate 5e-4.
+    Complete degradation, reward drops to 2.0. Too high learning rate
+Retraining last episode for 2e7 steps, learning rate 2e-5, the performance degraded closer to the end of the training,
+    during the training no notable improvement. average reward: 19.58675520437263, max reward 33.2301312666952,
+    average reward of last 50 episodes: 17.430573180390144, average reward of last 100 episodes: 18.58354290801901
+
+    # TODO test the 3 hidden 256 layers topology. Right now it is only 2 layers
+------------
+ARS
+------------
+1.     policy_kwargs = dict(
+        net_arch=[512, 512],  # hidden layers with VALUE neurons each
+        activation_fn=torch.nn.ELU
+    )
+    1e7 steps, 5e-5 learning rate
+    The model does not look to learn anything even though the reward valuie is quite high sometimes
+    average reward: 0.499846580136212, max reward 16.857184498072122,
+    average reward of last 50 episodes: 0.26749628127125097, average reward of last 100 episodes: 0.7466490851901696
+
+2. Test with much simpler topology
+    policy_kwargs = dict(
+        net_arch=[256, ],  # hidden layers with VALUE neurons each
+        activation_fn=torch.nn.ELU
+    )
+    2e7 steps, 5e-5 learning rate
+
