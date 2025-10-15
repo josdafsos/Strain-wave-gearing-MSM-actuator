@@ -1,0 +1,1 @@
+there are also python scripts for processing pid data and training neural network in programs folder (which is not in this directory)
