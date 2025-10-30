@@ -250,3 +250,28 @@ htmlcov/
 .coverage.*
 .cache
 .nox/
+
+# other
+*/slprj/
+/sim_and_control/saved data/*
+!/sim_and_control/saved data/
+/sim_and_control/neat_training/*
+!/sim_and_control/neat_training/
+/sim_and_control/pygad_networks_py_12/*
+!/sim_and_control/pygad_networks_py_12/
+/sim_and_control/pid_neural_networks/*
+!/sim_and_control/pid_neural_networks/
+
+/sim_and_control/sb_neural_networks/*
+!/sim_and_control/sb_neural_networks/ars/
+!/sim_and_control/sb_neural_networks/dqn/
+!/sim_and_control/sb_neural_networks/ppo/
+!/sim_and_control/sb_neural_networks/sac/
+!/sim_and_control/sb_neural_networks/td3/
+
+
+/sim_and_control/processed_data_frequency_4000_Hz/
+
+/sim_and_control/logs/
+
+

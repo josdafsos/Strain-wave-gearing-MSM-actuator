@@ -1,0 +1,288 @@
+import numpy as np
+
+import msm_model
+from sb3_contrib import ARS
+from stable_baselines3 import PPO, SAC, DQN, TD3
+from stable_baselines3.common.vec_env import SubprocVecEnv, VecMonitor
+from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback, EvalCallback, CallbackList
+import os
+import torch
+from datetime import datetime
+import matplotlib.pyplot as plt
+
+import utils
+
+
+class RewardLoggerCallback(BaseCallback):
+    def __init__(self, verbose=0):
+        super().__init__(verbose)
+
+    def _on_step(self):
+        return True
+        rewards = self.training_env.get_attr("total_reward")
+        if rewards:
+            print(f"Episode Rewards: {rewards}")
+        return True
+
+
+def make_env():
+    global reward_log_list, log_dir
+    # if Monitor class is used, access environment via env.get_env()
+    # return gym.make('CartPole-v1')
+    return msm_model.MSM_Environment(simulation_time=0.06,
+                                     setpoint_limits=(0.003, 0.012),
+                                     # action_discretization_cnt=20,  # used for discrete output agents
+                                     enable_action_filtering=False,  # can be set to True for discrete output agents for better performance
+                                     #zero_setpoint_probability=0.01,
+                                     )
+    # return Monitor(msm_model.MSM_Environment(randomize_setpoint=True), log_dir)
+
+def plot_rewards_history(vec_env):
+    min_len = 0
+    reward_matrix = vec_env.get_attr("episode_reward_list")
+    for i in range(len(reward_matrix)):  # need to equalize sizes of the vector
+        min_len = min(min_len, len(reward_matrix[i]))
+    for i in range(len(reward_matrix)):
+        reward_matrix[i] = reward_matrix[i][-min_len:]
+    rewards = np.transpose(np.array(reward_matrix))
+    mean_rewards = np.mean(rewards, axis=1)
+    mean_rewards = mean_rewards[1:]
+    reward_steps = [i for i in range(len(mean_rewards))]
+
+
+    max_rew = np.max(reward_matrix)
+    mean_rew = np.mean(reward_matrix)
+
+    total_records = rewards.flatten().shape[0]
+    averaging_length_50 = min(50, total_records)
+    averaging_length_100 = min(100, total_records)
+    mean_50_rew = np.mean(rewards.flatten()[-averaging_length_50:])  # average reward of 50 last episodes
+    mean_100_rew = np.mean(rewards.flatten()[-averaging_length_100:])  # average reward of 100 last episodes
+    print(f"Training average reward: {mean_rew}, max reward {max_rew}, \n"
+          f"average reward of last 50 episodes: {mean_50_rew}, average reward of last 100 episodes: {mean_100_rew}")
+
+    plt.figure(figsize=(10, 5))
+    plt.plot(reward_steps, mean_rewards)
+    plt.axhline(y=mean_rew, color='r', linestyle='--', linewidth=1)
+    plt.xlabel("Episodes x Number of Cores")
+    plt.ylabel("Average reward per episode set")
+    plt.title("Reward history")
+    plt.grid()
+    plt.show()
+
+def get_dqn_model(model_name, vec_env, device, learning_rate):
+    policy_kwargs = dict(
+        net_arch=[512, 512],  # hidden layers with VALUE neurons each
+        # activation_fn=torch.nn.ReLU
+        activation_fn=torch.nn.ELU
+    )
+
+    if model_name == "":
+        print("creating new DQN model")
+        model = DQN("MlpPolicy",
+                    vec_env,
+                    device=device,
+                    learning_rate=learning_rate,
+                    policy_kwargs=policy_kwargs,
+                    exploration_fraction=0.3,
+                    gradient_steps=-1,  #-1,  # suggested by Ming, default 1
+                    batch_size=256,
+                    verbose=1,)
+    else:
+        print("Loading DQN model for training")
+        custom_objects = {'learning_rate': learning_rate}
+        model = DQN.load(os.path.join('sb_neural_networks', 'dqn', model_name), vec_env, custom_objects=custom_objects)
+        model.set_env(vec_env)
+    return model
+
+def get_ars_model(model_name, vec_env, device, learning_rate):
+    # NOTE! for ARS an async evaluation environment can be implemented
+    policy_kwargs = dict(
+        net_arch=[64, ],  # hidden layers with VALUE neurons each
+        activation_fn=torch.nn.ELU
+    )
+
+    if model_name == "":
+        print("creating new ARS model")
+        model = ARS("MlpPolicy",  # some extra parameters can be adjusted
+                    vec_env,
+                    device=device,
+                    learning_rate=learning_rate,
+                    policy_kwargs=policy_kwargs,
+                    n_eval_episodes=5,
+                    n_delta=30,
+                    zero_policy=False,
+                    verbose=1,)
+    else:
+        print("Loading ARS model for training")
+        custom_objects = {'learning_rate': learning_rate}
+        model = ARS.load(os.path.join('sb_neural_networks', 'ars', model_name), vec_env, custom_objects=custom_objects)
+        model.set_env(vec_env)
+    return model
+
+def get_ppo_model(model_name, vec_env, device, learning_rate):
+    policy_kwargs = dict(
+        net_arch=dict(pi=[256, 256],
+                      vf=[256, 256]),  # hidden layers with VALUE neurons each
+        # activation_fn=torch.nn.ReLU
+        activation_fn=torch.nn.ELU
+    )
+
+    if model_name == "":
+        print("creating new PPO model")
+        model = PPO("MlpPolicy",
+                    vec_env,
+                    device='cpu',  # device, # recommended by the library
+                    learning_rate=learning_rate,
+                    policy_kwargs=policy_kwargs,
+                    batch_size=256,
+                    use_sde=False,  # TODO try this param to be True
+                    # n_steps=4096,
+                    verbose=1)
+    else:
+        print("Loading PPO model for training")
+        custom_objects = {'learning_rate': learning_rate}
+        model = PPO.load(os.path.join('sb_neural_networks', 'ppo', model_name), vec_env, custom_objects=custom_objects)
+        model.set_env(vec_env)
+    return model
+
+def get_sac_model(model_name, vec_env, device, learning_rate):
+    policy_kwargs = dict(
+        net_arch=dict(pi=[256, 256, ],
+                      qf=[256, 256, 256]),  # hidden layers with VALUE neurons each
+        # activation_fn=torch.nn.ReLU
+        activation_fn=torch.nn.ELU
+    )
+    if model_name == "":
+        print("creating new SAC model")
+        model = SAC("MlpPolicy",
+                    vec_env,
+                    device=device,
+                    learning_rate=learning_rate,
+                    policy_kwargs=policy_kwargs,
+                    # action_noise=NormalActionNoise(np.array([0.0]),  # mu
+                    #                                np.array([0.2])),  # sigma
+                    batch_size=256,
+                    gradient_steps=1,
+                    verbose=1)
+        """
+        Note: the constructor also has ent_coef param responsible for exploration, defaul is 'auto' for learning it
+        automatically.
+        ent_coef(str | float) – Entropy regularization coefficient.(Equivalent to inverse of reward scale in the 
+        original SAC paper.) Controlling exploration / exploitation trade - off.Set it to ‘auto’ to learn it
+        automatically( and ‘auto_0.1’ for using 0.1 as initial value)
+        
+        The constructor also has several SDE-related params (also used for exploration)
+        use_sde (bool) – Whether to use generalized State Dependent Exploration (gSDE) instead of action noise 
+        exploration (default: False)
+        See other SDE params from the docs https://stable-baselines3.readthedocs.io/en/master/modules/sac.html
+        """
+    else:
+        print("Loading SAC model for training")
+        custom_objects = {'learning_rate': learning_rate}
+        model = SAC.load(os.path.join('sb_neural_networks', 'sac', model_name), vec_env, custom_objects=custom_objects)
+        model.set_env(vec_env)
+    return model
+
+def get_td3_model(model_name, vec_env, device, learning_rate):
+    policy_kwargs = dict(
+        net_arch=dict(pi=[256,],
+                      # vf=[256]),
+                      qf=[128,]),  # hidden layers with VALUE neurons each
+        # activation_fn=torch.nn.ReLU
+        activation_fn=torch.nn.ELU
+    )
+    if model_name == "":
+        print("creating new TD3 model")
+        model = TD3("MlpPolicy",
+                    vec_env,
+                    device=device,
+                    learning_rate=learning_rate,
+                    policy_kwargs=policy_kwargs,
+                    batch_size=1024,
+                    verbose=1)
+    else:
+        print("Loading TD3 model for training")
+        custom_objects = {'learning_rate': learning_rate}
+        model = TD3.load(os.path.join('sb_neural_networks', 'td3', model_name), vec_env, custom_objects=custom_objects)
+        model.set_env(vec_env)
+    return model
+
+if __name__ == '__main__':
+
+    # TODO priority, try RAS and probably use behaviour clonning from trained DQN agent to get initial RAS agent
+    # TODO PPO with gSDE, it is benchmarked to perform significantly better!
+    # TODO at a new tooth engagement, there is an unrealistic oscillations. Try to adjust sim parameters to avoid this effect
+
+    model_name = ""  # leave empty if a new model must be trained
+    model_name = "ppo_32_obs_4000_Hz_freq_210000000_network_06_23_25"
+    model_type = "ppo"  # sac, ppo,dqn
+
+    learning_rate = 1e-6
+    timesteps = int(7e7)
+    num_envs = 30  # Number of parallel environments
+
+    model_dict = {
+        "sac": get_sac_model,  # difficult to train, possible to reach controllability with relatively high error
+        "ppo": get_ppo_model,
+        "dqn": get_dqn_model,  # dqn (can control with relatively high error)
+        "td3": get_td3_model,  # td3 (does not learn)
+        "ars": get_ars_model,
+    }
+
+    if hasattr(torch, 'accelerator') and torch.accelerator.is_available():
+        device = torch.accelerator.current_accelerator().type
+    else:
+        device = 'cpu'
+    #device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
+    print(f"Current device: {device}")
+
+    log_dir = 'logs'
+    env = make_env()
+
+    # Vectorized environment setup
+    vec_env = SubprocVecEnv([make_env for _ in range(num_envs)])  # Or use DummyVecEnv([make_env])
+    vec_env = VecMonitor(vec_env)
+    if num_envs == 1:
+        vec_env = env
+    """
+    if model_name == "":
+        # model = RecurrentPPO("MlpLstmPolicy", vec_env, learning_rate=1e-3, verbose=1)  # instead use normal PPO with frame stacking
+    """
+
+    model = model_dict[model_type](model_name, vec_env, device, learning_rate)
+    obs_cnt = env.total_obs_cnt
+
+    # callback settings
+    checkpoint_path = './sb_neural_networks/' + model_type
+    checkpoint_callback = CheckpointCallback(
+        save_freq=int(2e4),
+        save_path=checkpoint_path + '/checkpoints/',
+        name_prefix=f"{model_type}_{obs_cnt}_obs_{utils.NN_WORKING_FREQUENCY}_Hz_freq"
+    )
+    eval_callback = EvalCallback(vec_env, best_model_save_path=checkpoint_path + '/best_models/', eval_freq=int(5e3))
+    callback = CallbackList([checkpoint_callback, eval_callback])
+
+    # Train the agent
+    print(model.policy)
+    model.learn(total_timesteps=timesteps,
+                progress_bar=True,
+                callback=checkpoint_callback,
+                reset_num_timesteps=False
+                #callback=RewardLoggerCallback()
+                )
+    # Save the agent
+    if model_name == "":
+        model_name = f"{model_type}_{obs_cnt}_obs_{utils.NN_WORKING_FREQUENCY}_Hz_freq_{timesteps}_network_" + datetime.now().strftime("%D_").replace("/", "_")
+    else:
+        model_name = model_name + "_new"
+    model.save(os.path.join('sb_neural_networks', model_type, model_name))
+
+    plot_rewards_history(vec_env)
+    print(model.policy)
+
+
+    # print(utils.reward_list)
+    # msm_model.MSM_Environment.plot_expected_reward_history(utils.reward_list)
+
+

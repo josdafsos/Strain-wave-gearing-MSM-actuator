@@ -1,0 +1,361 @@
+Simple MLPs with two or three layers can maintain a control with a fixed setpoint
+
+For random setpoint system was tested
+        net_arch=[256, 256, 512],  # hidden layers with VALUE neurons each
+        activation_fn=torch.nn.ReLU
+for 3e7 steps. Not converged, no progress
+
+---------------
+DQN training:
+Architecture:
+        net_arch=[256, 256],  # hidden layers with VALUE neurons each
+        activation_fn=torch.nn.ELU
+
+        model = DQN("MlpPolicy",
+                    vec_env,
+                    device=device,
+                    learning_rate=learning_rate,
+                    policy_kwargs=policy_kwargs,
+                    gradient_steps=-1,  #-1,  # suggested by Ming, default 1
+                    batch_size=256,
+                    verbose=1,)
+
+simulation_time=0.03
+Reward = max(1 / (0.1 + abs(dv)) - 9.8, 0)
+Velocity, velocity error and velocity error derivative are not normalized
+Trained for 2e6 steps, learning rate 1e-4
+
+1. 10 stack; obs: ['rack_phase', 'rack_vel', 'rack_tanh_acc', 'velocity_setpoint',],
+Final mean reward (several runs): oscillate around 7.0; around 5.0; around 9.0
+
+2. 10 stack, obs: ['rack_phase', 'rack_vel', 'rack_tanh_acc', 'velocity_setpoint', 'error_integral', 'error_derivative', 'is_max_teeth_engaged']
+Final mean reward: oscillation around 11.0 (not yet converged to maximum), around 10.7; reward peaked at around 11.0 (during first 40% of training) and then degraded to 2
+
+3. 5 stack, obs: ['rack_phase', 'rack_vel', 'rack_tanh_acc', 'velocity_setpoint', 'error_integral', 'error_derivative', 'is_max_teeth_engaged']
+Final mean reward: 11.1, not converged to maximum yet; 11.5; scillating around 9.46
+
+4. obs + 4*stack: core obs ['rack_phase', 'rack_vel', 'rack_tanh_acc', 'velocity_setpoint', 'error_integral', 'error_derivative', 'is_max_teeth_engaged']
++ 4 x stack: ['rack_phase', 'rack_vel', 'rack_tanh_acc', 'velocity_setpoint',]
+Final mean reward: 11.6 not yet converged; 10.7 almost converged; 10.4
+
+5. obs + 10*stack: core obs ['rack_phase', 'rack_vel', 'rack_tanh_acc', 'velocity_setpoint', 'error_integral', 'error_derivative', 'is_max_teeth_engaged']
++ 10 x stack: ['rack_phase', 'rack_vel', 'rack_tanh_acc', 'velocity_setpoint',]
+Final mean reward: 10.6 not yet converged; 9.7; oscillating around 8.0
+
+6. obs + 6*stack: core obs ['rack_phase', 'rack_vel', 'rack_tanh_acc', 'velocity_setpoint', 'error_integral', 'error_derivative', 'is_max_teeth_engaged']
++ 6 x stack: ['rack_phase', 'rack_vel', 'rack_tanh_acc', 'velocity_setpoint',]
+Final mean reward: 11.2 not yet converged; 10.6; 9.9
+
+NOTE: the following trials have all normalized input data
+
+7. obs + 5*stack: core obs ['rack_phase', 'rack_vel_normalized', 'rack_tanh_acc', 'velocity_setpoint_normalized', 'error_integral', 'error_derivative_tanh', 'is_max_teeth_engaged']
++ 5 x stack: ['rack_phase', 'rack_vel_normalized', 'rack_tanh_acc', 'is_max_teeth_engaged']
+Final mean reward: 10.8; 11.4 not fully converged; high oscillations from 6.27 to 11.7
+
+8. obs + 5*stack: core obs ['rack_phase', 'rack_vel_normalized', 'rack_tanh_acc', 'velocity_setpoint_normalized', 'error_integral', 'error_derivative_tanh', 'is_max_teeth_engaged']
++ 5 x stack: ['rack_phase', 'rack_vel_normalized', 'rack_tanh_acc', 'is_max_teeth_engaged', 'velocity_setpoint_normalized']
+Final mean reward: 10.6; 12.8 not fully converged; 11.2
+
+8-1:
+12.8 post-trained for 2e8 steps,with velocity setpoint_limits=(0.006, 0.010), learning_rate = 1e-8 and simulation time 0.06. Resulting mean reward 20.6 (10.3 recalculated for 0.03 sim time). 1e8 steps computed for 1d, 3 hours.
+DQN has better performance than pid at velocity 0.0076
+
+Architecture modified to:
+    policy_kwargs = dict(
+        net_arch=[16, 256],  # hidden layers with VALUE neurons each
+        activation_fn=torch.nn.ELU
+    )
+
+9. Obs + stack same as in 8.
+Final mean reward: 7.8; 8.0; 8.0
+
+10. Obs + stack same as in 8. net_arch=[32, 256],
+Final mean reward:peak with 8,0, oscillate around 7.0, at the end dropped to 5.0, but before reached 10.0
+
+11. Obs + stack same as in 8. net_arch=[64, 256],
+Final mean reward: 10.1 not fully converged; 10.1 not fully converged (yes, again);12.6 not fully converged
+
+12. Obs + stack same as in 8. net_arch=[80, 256],
+Final mean reward:degraded to 6.8, peaked at 11.4; 10.4 not  converged; 12.4 not converged yet
+
+12. Obs + stack same as in 8. net_arch=[100, 256],
+Final mean reward: 12.4 not converged yet; 10.9 not fully converged
+
+13. Obs same as in 8. architecture:
+policy_kwargs = dict(
+        net_arch=[256, 256, 256],
+        activation_fn=torch.nn.ELU
+    )
+
+simulation_time=0.06, velocity set point limits=(0.006, 0.010)
+
+Mean reward after3e7 episodes 16, not converged yet, lr= 1e-8.
+LR reduced to 1e-9, training continued - no progress observed after 1e7 steps.
+LR changed to 1e-6 much better performance, reward started to grow and reached 16.5 (not converged yet), trained for 5e6 steps
+LR changed to 1e-3: very poor performance, the agent rapidly degrades
+LR changed to 1e-4: the max reward reached over 18.0, but the training is unstable and reward jumps back and forth
+LR changed to 1e-4: 1e-5. trained for 5e6 steps, reward 21.6, not converged yet
+Training continued for 2e7, reached reward 22.3, but at the end dropped to 19.7 (use a checkpoint from the middle)
+Checkpoint with 44000000 steps worked best most of the times (on each training run the result is different), training continues from it.
+The velocity range was expanded to full available range: velocity set point limits=(0.001, 0.012)
+With RL 2e-5: the system degraded
+With RL 5e-6: initial reward was poor due to set point range extension, but it converged back to 21.3; training continued for 5e7, peak reward over 24.2 at 97M steps and 98.5Mcsteps converged.
+Training continued from 97M steps, With RL 1e-6, for 5e7 steps: reward 23.9, converged
+Training continued, With RL 5e-7: No improvements since the previous run
+
+14. New architecture:
+    policy_kwargs = dict(
+        net_arch=[512, 512],
+        activation_fn=torch.nn.ELU
+    )
+    RL = 1e-6
+    simulation_time=0.06, setpoint_limits=(0.001, 0.012)
+    Run for 3e7 steps, 30% of steps for exploration (epsilon decay to 5% when 30% of steps is reached)
+    Reached up to 20.0, converged at 1e7 steps
+    Training continued for 1e7 with LR=5e-6 - reward increased to 21.4 and converged
+    Training continued for 1e7 with LR=1e-5 - converged to 22.5
+    Training continued for 1e7 with LR=1e-6 - converged to 23.9
+    Training continued for 1e7 with LR=2e-7 - not much improvement, oscillating around 24.0; NAMED AS "stable_24_8_fit_dqn_32_obs_4000_Hz_freq_30000000_steps"
+    Training continued for 1e7 with LR=5e-8 - did not improve, retraining without this episode
+    Training continued for 1e7 with LR=1e-8 - did not improve, retraining without this episode, yet 25.1 reward was noticed at some point (very narrow time period)
+    Training continued for 3e6 with LR=2e-6 - did not improve, retraining without this episode
+    Training continued for 3e6 with LR=5e-7 - slightly improved to 24.1 (even though previous recording was higher)
+    Training continued for 3e6 with LR=5e-7 - did not improve, retraining without this episode
+    Training continued for 3e6 with LR=2e-7 - did not improve, retraining without this episode
+    Training continued for 3e6 with LR=2e-7 - improved to 24.7, named stable2_dqn_32_obs_4000_Hz_freq_30000000_network
+    On average better that PID
+
+15. Training for a variable force: idea is to train two networks for vel range 6 - 8 and 8 - 10 mm/s, but both optimized for force and use corresponding NN for the desired Velocity setpoint
+MSM_Environment(simulation_time=0.06, setpoint_limits=(0.008, 0.010), force_limits=(-8, -1), action_discretization_cnt=20)
+ policy_kwargs = dict(
+        net_arch=[512, 512],
+        activation_fn=torch.nn.ELU
+    )
+ RL = 2e-6
+ Converged to 17.3 after 40% of the training, named as force_training_15_experiment_dqn_32_obs_4000_Hz_freq_10000000_steps
+ Training continued for 3e6 with LR=5e-6, did not improve, retraining without this episode
+ Training continued for 3e6 with LR=1e-6, did not improve, retraining without this episode
+ Training continued for 3e6 with LR=2e-7, slightly improved
+ Training continued for 3e6 with LR=1e-7,
+
+16. (simulation_time=0.06, setpoint_limits=(0.001, 0.010), force_limits=(-7, -1), action_discretization_cnt=20)
+Training continued for 1e8 with LR=1e-6
+    policy_kwargs = dict(
+        net_arch=[256, 256, 256],  # hidden layers with VALUE neurons each
+        activation_fn=torch.nn.ELU
+    )
+Epsion converges to 0.05% after 30% of steps (previously in all experiments was 20% of episodes)
+Worked well, learning curve saved in documents. end reward 23.4; max found reward (from console) 25.1
+
+17. same as 16 once again, te-training
+converged after 6e+7 steps, average reward around 22.0
+
+18. Newtopology, other parameters unchanged
+    policy_kwargs = dict(
+        net_arch=[512, 512],  # hidden layers with VALUE neurons each
+        # activation_fn=torch.nn.ReLU
+        activation_fn=torch.nn.Tanh
+    )
+
+Converged After 30% of steps. average reward around 23.5
+
+19. "best_dqn_32_obs_4000_Hz_freq_97000000_steps" was trained for 1e+6 steps with 3% chance of zero velocity set point and
+for other 97% set point was in [0.000, 0.012] m/s range.
+Reward changed from 11.7 to around 22.5 (under new conditions), oscillations have smaller frequency, but the positioning error higher than the benchmark DQN + PID
+
+20. Retraining same as in 19. 1e+7 steps, RL 1e-6
+Converged at about 20% of the steps, mean reward around 26.0
+
+------------------------------------
+Training SAC
+------------------------------------
+
+
+1.         net_arch=dict(pi=[256, 256],
+                      qf=[256, 256]),  # hidden layers with VALUE neurons each
+                        activation_fn=torch.nn.ELU)
+        Batch size=256, other settings are default
+
+        LR = 1e-6, Steps 3e6
+        Converging to average reward of 3.5
+
+2. Added action noise                     action_noise=NormalActionNoise(np.array([0.0]),  # mu
+                                                   np.array([0.1])),  # sigma
+       Critic topology changed to match DQN critic topology
+       policy_kwargs = dict(
+        net_arch=dict(pi=[256, 256],
+                      qf=[256, 256, 256]),  # hidden layers with VALUE neurons each
+        activation_fn=torch.nn.ELU
+
+        LR = 1e-7, Steps 3e6
+        Reward converged to around 3.9
+
+ 2.1 Tested other noise values, they do not seem to help at all, thus noise is excluded (exploration in SAC is achieved by entropy anyway)
+
+3. No action noise, same topology as in 2. LR=1e-3. Reward reached 12.5, not converged
+continued for 1e6 steps, reward improved to 13.3 and converged
+continued for 1e6 steps, RL=1e-4 reward improved to 15.8 and converged
+continued for 1e6 steps, RL=1e-5 reward improved to 16.4 and converged, peak at 17.2
+continued for 1e6 steps, RL=5e-5 reward degraded
+
+4. Simplified Actor architecture
+    policy_kwargs = dict(
+        net_arch=dict(pi=[256, ],
+                      qf=[256, 256, 256]),  # hidden layers with VALUE neurons each
+        activation_fn=torch.nn.ELU)
+    LR=1e-4 for 3e6 steps, reward 6.3, not converged. Requires a lot of time to converge
+
+5. Changed Actor architecture:
+    policy_kwargs = dict(
+        net_arch=dict(pi=[128, 128],
+                      qf=[256, 256,]),  # hidden layers with VALUE neurons each
+        activation_fn=torch.nn.ELU)
+    RL=3e-4, Steps =3e6. Reward converged to 6.8
+
+6. More complex topology
+        net_arch=dict(pi=[256, 256, 256],
+                      qf=[256, 256, 256])
+  RL=1e-3, 3e6 steps. Seems to converge around 11.0
+  Continued for 3e6 steps, LR=1e-4. Reward converged around 12.0
+
+  Run for 3e7 steps, LR=1e-5, reward oscillates around 13.0 (converged), peak was around 16.0
+
+7. New topology, LR =1e-5
+  policy_kwargs = dict(
+        net_arch=dict(pi=[256, 256, ],
+                      qf=[256, 256, 256]),  # hidden layers with VALUE neurons each
+        # activation_fn=torch.nn.ReLU
+        activation_fn=torch.nn.ELU
+    )
+  1e+7 steps, reward 3.0, converged
+
+8. Same topology as in 7.
+gradient_steps=-1 (max grad steps), learning_rate = 5e-5, Steps 1e7,
+Reward is growing very slowly with high std, peak reached 19.8, but mean is around 15.5
+
+Continued training for 3e6 steps. Very slow reward growth. Peak at 20.0, average is approximately same
+Continued training for 1e7 steps. Almost zero reward growth. average reward: 15.903599442236368, max reward 37.133957375030995
+Continued training for 1e7 steps. learning rate = 1e-4, interrupted due to electricity shortage. Training continued for a checkpoint 2.7e7 steps
+    Reward does not seem to improve, training stopped at 3e7 steps (in total)
+Continued training for 1e7 steps. learning rate = 5e-6 for 1e7 steps. Does not improve, average reward: 16.19728675637543, max reward 36.761425061808694
+
+
+-------------------
+PPO
+------------------
+
+1. Topology:
+    policy_kwargs = dict(
+        net_arch=dict(pi=[256, 256],
+                      vf=[256, 256]),  # hidden layers with VALUE neurons each
+        activation_fn=torch.nn.ELU)
+    LR=1e-4, steps 3e6
+    average reward: 3.5211409120647077, max reward 10.820091166604549
+Training continued for 1e7 steps, average reward around 16.0, max reward 30.048388114774944
+    Close to converged, but the std increases
+Training continued for 1e7 steps, average reward around 16.5 and continues to grow very slowly, max reward 32.3
+Training continued for 1e7 steps, learning rate 5e-5, average reward: 17.421475309447782,
+    max reward 32.93910687707977, average reward of last 50 episodes: 18.942243088774802. Does not seem to grow more
+Training continued for 1e7 steps, Reward is slowly growing:
+    average reward: 18.423185750008102, max reward 33.7726716039963,
+    average reward of last 50 episodes: 17.918488681419905, average reward of last 100 episodes: 18.016689096436295'
+Training continued for 2e7 steps, Training average reward: 19.09231305002733, max reward 34.8552864943136,
+average reward of last 50 episodes: 18.72095916474925, average reward of last 100 episodes: 19.049946357760856
+Does not seem to improve much from the plot
+Training continued for 2e7 steps, learning rate = 2e-4, the performance is degraded a bit, thus the results are not saved
+    average reward: 18.265675284582116, max reward 33.21308569535324,
+    average reward of last 50 episodes: 17.555606447219542, average reward of last 100 episodes: 17.60330815446791
+Training continued for 2e7 steps, learning rate = 1e-5. Slight improvement: average reward: 19.553579082170923, max reward 34.46095324131353,
+    average reward of last 50 episodes: 20.78542312846633, average reward of last 100 episodes: 20.80684074885276
+Training continued for 2e7 steps, Not improved, the results are not included
+Training continued for 3e7 steps,learning rate = 5e-6, average reward: 19.513774067004697, max reward 34.18092251254129,
+    average reward of last 50 episodes: 19.800673620696948, average reward of last 100 episodes: 19.048275486764823
+    Performance slightly degraded
+Retraining last episode for 2e7 steps, learning rate 5e-4.
+    Complete degradation, reward drops to 2.0. Too high learning rate
+Retraining last episode for 2e7 steps, learning rate 2e-5, the performance degraded closer to the end of the training,
+    during the training no notable improvement. average reward: 19.58675520437263, max reward 33.2301312666952,
+    average reward of last 50 episodes: 17.430573180390144, average reward of last 100 episodes: 18.58354290801901
+Retraining last episode for 3e7 steps, learning rate 2e-6, very minor improvement,
+    average reward: 19.687549176881916, max reward 34.4873779398429,
+    average reward of last 50 episodes: 19.281071907182298, average reward of last 100 episodes: 19.67450321056048
+Training continued for 1e7 steps, learning rate 5e-6, from the plots does not look to improve
+    average reward: 19.751237804578107, max reward 33.4151792124655,
+    average reward of last 50 episodes: 18.114796264579105, average reward of last 100 episodes: 19.553545359365625
+Training continued for 8e7 steps, learning rate 1e-6, average reward: 19.95008414109567, max reward 34.34407060077515,
+    average reward of last 50 episodes: 20.736433820886887, average reward of last 100 episodes: 20.715665276990126
+Training continued for 7e6 steps, learning rate 5e-7. Did not improve, average reward: 19.949718503867388, max reward 34.10588268733893,
+    average reward of last 50 episodes: 19.754247775729553, average reward of last 100 episodes: 19.78104047551001
+Training continued for 7e7 steps, learning rate 1e-6. Very minor improvement average reward: 20.14833323461831, max reward 34.545557229921116,
+    average reward of last 50 episodes: 20.10625747100529, average reward of last 100 episodes: 20.26394634410765
+
+
+1-remote.         net_arch=dict(pi=[256, 256, 256],
+                      vf=[256, 256, 256]),  # hidden layers with VALUE neurons each
+                    activation_fn=torch.nn.ELU
+Training for 3e7 steps, learning rate 5e-5, Reward is growing, not converged at all average reward: 4.591972780066163, max reward 20.397288086162526
+Continued training for 1e8 steps, Not converged average reward: 9.94471044248909, max reward 29.103887530094426
+Continued training for 1e8 steps, Not converged average reward: 14.368512950235738, max reward 29.95886226718785
+Continued training for 1e8 steps, slow progress, not converged. Reward increased by 1.5, average reward: 15.66940657521506, max reward 30.434348030898363
+Continued training for 2e8 steps, slow progress, not converged. Reward increased by 1.5 again, average reward: 16.60101371186412, max reward 30.9055675646062
+Continued training for 2e8 steps, slow progress, not converged, average reward: 17.426828337681325, max reward 30.786286428277187
+Continued training for 1e8 steps, learning rate 2e-5, close to converge, average reward: 18.05646006796369, max reward 29.91317124580935
+
+2-remote. Simpler policy architecture,
+
+    policy_kwargs = dict(
+        net_arch=dict(pi=[256, 256,],
+                      vf=[256, 256, 256]),  # hidden layers with VALUE neurons each
+        activation_fn=torch.nn.ELU
+    )
+    learning rate 1e-4, not converged average reward: 4.888631147851536, max reward 21.25789258592129
+    Training continued for 2e8 steps, learning rate 5e-5, very slow growth, average reward: 6.246013042532691, max reward 25.756913459648985
+
+    # TODO test the 3 hidden 256 layers topology. Right now it is only 2 layers
+------------
+ARS
+------------
+1.     policy_kwargs = dict(
+        net_arch=[512, 512],  # hidden layers with VALUE neurons each
+        activation_fn=torch.nn.ELU
+    )
+    1e7 steps, 5e-5 learning rate
+    The model does not look to learn anything even though the reward valuie is quite high sometimes
+    average reward: 0.499846580136212, max reward 16.857184498072122,
+    average reward of last 50 episodes: 0.26749628127125097, average reward of last 100 episodes: 0.7466490851901696
+
+2. Test with much simpler topology
+    policy_kwargs = dict(
+        net_arch=[256, ],  # hidden layers with VALUE neurons each
+        activation_fn=torch.nn.ELU
+    )
+    2e7 steps, 5e-5 learning rate. Progress is not notable average reward: 0.47892895291389126, max reward 22.154807335646648,
+    average reward of last 50 episodes: 1.8370130245184313, average reward of last 100 episodes: 1.6064485683651069
+Training continued for 2e7 steps. Does not seem to improve. average reward: 0.4957453108145529, max reward 21.142586352081363,
+    average reward of last 50 episodes: 0.5661314610494791, average reward of last 100 episodes: 0.4333204215927013
+
+3. Testing simpler architecture
+policy_kwargs = dict(
+        net_arch=[64, ],  # hidden layers with VALUE neurons each
+        activation_fn=torch.nn.ELU
+    )
+    1e7 steps, 1e-4 learning rate. The training stopped earlier, agent does not seem to learn. Probably LR should be reduced due to high reward oscillations
+
+New training started for 2e7 steps, learning rate = 1e-5. Does not seem to learn average reward: 0.519757484585321, max reward 20.86479638317134,
+    average reward of last 50 episodes: 0.13120726197855245, average reward of last 100 episodes: 0.5258819424234428
+Training continue for 5e7 steps, not much progress average reward: 0.5042420653279946, max reward 21.86606238532871,
+average reward of last 50 episodes: 0.06023938460806253, average reward of last 100 episodes: 0.7162706951102082
+Training continued for 1e7 steps, learning rate 1e-4. Does not seem to learn, average reward: 0.5063452226317401, max reward 22.1062133192886,
+    average reward of last 50 episodes: 0.9631228142468936, average reward of last 100 episodes: 0.923416548769099
+
+4. Same policy as in 3. 2e7 steps, learning rate 1e-4, n_eval_episodes=5, (default was 1), zero_policy=False (default was True)
+    Does not seem to lear, average reward: 0.7762336097440915, max reward 16.372830325812863,
+    average reward of last 50 episodes: 0.7755069486628544, average reward of last 100 episodes: 0.8280191570857082
+
+5. Same policy as in 3. 5e7 steps, learning rate 1e-4, n_eval_episodes=5, zero_policy=False, n_delta=30 (default 8)
+Does not seem to learn, average reward: 0.5316639143373978, max reward 15.605027608036362,
+    average reward of last 50 episodes: 0.288506755918403, average reward of last 100 episodes: 0.252944220878314
+Training continued for 5e7 steps, learning rate = 1e-6, does not seem to learn anything average reward: 0.608650597152064, max reward 16.004380206876945,
+    average reward of last 50 episodes: 0.25498274849917985, average reward of last 100 episodes: 0.33329191254748564
+Training continued for 5e7 steps, learning rate = 5e-5, does not learn anything
+Training continued for 1e8 steps, learning rate = 1e-7, does not seem to learn
