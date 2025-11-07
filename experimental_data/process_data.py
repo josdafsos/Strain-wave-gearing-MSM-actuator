@@ -127,8 +127,8 @@ def plot_data(data_list: list[dict], enable_pitch_plotting: bool = False) -> Non
 if __name__ == "__main__":
     # --- available settings ---
     data_json: str = "setup_031125.json"   # name of the description file to be used by parser
-    ids_to_plot: list[str | int] = [54, 55, 56, ]  # IDs of the data samples to be plotted
-    enable_pitch_plotting = True  # if true plot background will be colored with stripes of pitch height
+    ids_to_plot: list[str | int] = [54, 55, ]  # IDs of the data samples to be plotted
+    enable_pitch_plotting = False  # if true plot background will be colored with stripes of pitch height
 
     # --- rest of the script ----
     used_data: list[dict] = []  # parsed data is stored here

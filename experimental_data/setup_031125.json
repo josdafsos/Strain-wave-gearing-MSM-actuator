@@ -6,7 +6,7 @@
     "1": {
     "unit": "mm/s",
     "scaler": "10",
-    "time_offset": "0.0"
+    "time_offset": "0.0000154"
   },
     "2": {
     "unit": "mm",
@@ -18,7 +18,8 @@
   },
     "4": {
     "unit": "mm/s",
-    "scaler": "20"
+    "scaler": "20",
+    "time_offset": "0.0000161"
   },
     "5": {
     "unit": "mm",
@@ -29,7 +30,8 @@
   },
       "7": {
     "unit": "mm/s",
-    "scaler": "20"
+    "scaler": "20",
+    "time_offset": "0.0000161"
   },
     "8": {
     "unit": "mm",
@@ -44,7 +46,8 @@
   },
     "10": {
     "unit": "mm/s",
-    "scaler": "20"
+    "scaler": "20",
+    "time_offset": "0.0000161"
   },
   "12": {
     "unit": "V"
@@ -55,7 +58,8 @@
   },
     "13": {
     "unit": "mm/s",
-    "scaler": "20"
+    "scaler": "20",
+    "time_offset": "0.0000161"
   },
   "15": {
     "unit": "V"
@@ -66,14 +70,16 @@
   },
     "16": {
     "unit": "mm/s",
-    "scaler": "20"
+    "scaler": "20",
+    "time_offset": "0.0000161"
   },
   "18": {
     "unit": "V"
   },
     "19": {
     "unit": "mm/s",
-    "scaler": "20"
+    "scaler": "20",
+    "time_offset": "0.0000161"
   },
     "20": {
     "unit": "mm",
@@ -84,7 +90,8 @@
   },
     "22": {
     "unit": "mm/s",
-    "scaler": "10"
+    "scaler": "10",
+    "time_offset": "0.0000154"
   },
     "23": {
     "unit": "mm",
@@ -95,7 +102,8 @@
   },
     "25": {
     "unit": "mm/s",
-    "scaler": "10"
+    "scaler": "10",
+    "time_offset": "0.0000154"
   },
     "26": {
     "unit": "mm",
@@ -106,7 +114,8 @@
   },
     "28": {
     "unit": "mm/s",
-    "scaler": "10"
+    "scaler": "10",
+    "time_offset": "0.0000154"
   },
     "29": {
     "unit": "mm",
@@ -117,7 +126,8 @@
   },
     "31": {
     "unit": "mm/s",
-    "scaler": "10"
+    "scaler": "10",
+    "time_offset": "0.0000154"
   },
     "32": {
     "unit": "mm",
@@ -128,7 +138,8 @@
   },
     "34": {
     "unit": "mm/s",
-    "scaler": "10"
+    "scaler": "10",
+    "time_offset": "0.0000154"
   },
     "35": {
     "unit": "mm",
@@ -139,7 +150,8 @@
   },
     "37": {
     "unit": "mm/s",
-    "scaler": "20"
+    "scaler": "20",
+    "time_offset": "0.0000161"
   },
     "38": {
     "unit": "mm",
@@ -150,7 +162,8 @@
   },
     "40": {
     "unit": "mm/s",
-    "scaler": "20"
+    "scaler": "20",
+    "time_offset": "0.0000161"
   },
     "41": {
     "unit": "mm",
@@ -161,7 +174,8 @@
   },
     "43": {
     "unit": "mm/s",
-    "scaler": "20"
+    "scaler": "20",
+    "time_offset": "0.0000161"
   },
     "44": {
     "unit": "mm",
@@ -172,7 +186,8 @@
   },
     "46": {
     "unit": "mm/s",
-    "scaler": "20"
+    "scaler": "20",
+    "time_offset": "0.0000161"
   },
     "47": {
     "unit": "mm",
@@ -183,7 +198,8 @@
   },
     "49": {
     "unit": "mm/s",
-    "scaler": "20"
+    "scaler": "20",
+    "time_offset": "0.0000161"
   },
     "50": {
     "unit": "mm",
@@ -194,7 +210,8 @@
   },
     "52": {
     "unit": "mm/s",
-    "scaler": "20"
+    "scaler": "20",
+    "time_offset": "0.0000161"
   },
     "53": {
     "unit": "mm",
@@ -205,7 +222,8 @@
   },
     "55": {
     "unit": "mm/s",
-    "scaler": "20"
+    "scaler": "20",
+    "time_offset": "0.0000161"
   },
     "56": {
     "unit": "mm",
@@ -216,7 +234,8 @@
   },
     "58": {
     "unit": "mm/s",
-    "scaler": "20"
+    "scaler": "20",
+    "time_offset": "0.0000161"
   },
     "59": {
     "unit": "mm",
@@ -227,7 +246,8 @@
   },
     "61": {
     "unit": "mm/s",
-    "scaler": "20"
+    "scaler": "20",
+    "time_offset": "0.0000161"
   },
     "62": {
     "unit": "mm",
@@ -238,7 +258,8 @@
   },
     "64": {
     "unit": "mm/s",
-    "scaler": "20"
+    "scaler": "20",
+    "time_offset": "0.0000161"
   },
     "65": {
     "unit": "mm",
@@ -249,7 +270,8 @@
   },
     "67": {
     "unit": "mm/s",
-    "scaler": "20"
+    "scaler": "20",
+    "time_offset": "0.0000161"
   },
     "68": {
     "unit": "mm",
@@ -260,7 +282,8 @@
   },
     "70": {
     "unit": "mm/s",
-    "scaler": "20"
+    "scaler": "20",
+    "time_offset": "0.0000161"
   },
     "71": {
     "unit": "mm",
