@@ -7,7 +7,8 @@ json structure must be as following:
 "folder" = <name of the folder to take data from>
 <channel id number> = {"units" = <used units>,
                        <OPTIONAL ATTRIBUTE, default 1>, "scaler" = <coefficient to linearly scale the dat to the corresponding units>,
-                       <OPTIONAL ATTRIBUTE, default 0>, "time_offset" = <offset from the start time, will shift the data timeline>
+                       <OPTIONAL ATTRIBUTE, default 0>, "time_offset" = <offset from the start time, will shift the data_description timeline>
+                       <OPTIONAL ATTRIBUTE, default 0>, "start_at_zero" = <0 or 1 defines if the data must start from 0, i.e. it will be offsetted>
                        }
 """
 from os import path
@@ -105,7 +106,8 @@ def plot_data(data_list: list[dict], enable_pitch_plotting: bool = False) -> Non
     fig.update_layout(
         xaxis=dict(title='Time (s)'),
         title='Multi-Axis Time Series',
-        legend=dict(orientation='h', y=-0.2)
+        legend=dict(orientation='h', y=-0.2),
+        plot_bgcolor="white"
     )
 
     if enable_pitch_plotting and "mm" in units:
@@ -124,24 +126,12 @@ def plot_data(data_list: list[dict], enable_pitch_plotting: bool = False) -> Non
 
     fig.show()
 
-if __name__ == "__main__":
-    # --- available settings ---
-    data_json: str = "setup_031125.json"   # name of the description file to be used by parser
-    ids_to_plot: list[str | int] = [54, 55, ]  # IDs of the data samples to be plotted
-    enable_pitch_plotting = False  # if true plot background will be colored with stripes of pitch height
-
-    # --- rest of the script ----
-    used_data: list[dict] = []  # parsed data is stored here
-
-    with open(data_json, 'r', encoding='utf-8') as f:  # Open and load the JSON file
-        data = json.load(f)
-
-    for data_id in ids_to_plot:
-        cur_dict = data[str(data_id)]
-        df = pd.read_csv(path.join(data["folder"], str(data_id) + '.csv'), header=None)
+def process_data(ids_to_process, data_description: dict, ):
+    processed_data: list[dict] = []  # parsed data_description is stored here
+    for data_id in ids_to_process:
+        cur_dict = data_description[str(data_id)]
+        df = pd.read_csv(path.join(cur_dict["folder"], str(data_id) + '.csv'), header=None)
         numpy_df = df.to_numpy()
-        # time = df.columns[0].to_numpy()
-        # values = df.columns[1].to_numpy()
         time = numpy_df[:, 0]
         values = numpy_df[:, 1]
 
@@ -149,9 +139,35 @@ if __name__ == "__main__":
         time = time + float(cur_dict.get('time_offset', 0))
 
         values = values * float(cur_dict.get('scaler', 1))
+        if "start_at_zero" in cur_dict and bool(cur_dict["start_at_zero"]):
+            values -= values[0]
 
         cur_dict["time"] = time
         cur_dict["values"] = values
-        used_data.append(cur_dict)
+        processed_data.append(cur_dict)
 
-    plot_data(used_data, enable_pitch_plotting=enable_pitch_plotting)
+    return processed_data
+
+if __name__ == "__main__":
+    # --- available settings ---
+    # plots 55, 56 are good for comparison with simulation data, first good offset "0.073" seconds.
+    ids_to_plot: list[str | int] = ["vel1", 55, ]  # IDs of the data_description samples to be plotted
+    enable_pitch_plotting = False  # if true plot background will be colored with stripes of pitch height
+
+    # --- rest of the script ----
+    data_json_list: list[str] = ["setup_031125.json",
+                                 "simulations_description.json"]  # name of the description file to be used by parser
+
+    data_description = {}
+    for data_json in data_json_list:
+        with open(data_json, 'r', encoding='utf-8') as f:  # Open and load the JSON file
+            tmp_dict = json.load(f)
+            data_folder = tmp_dict["folder"]
+            for key in tmp_dict:
+                if type(tmp_dict[key]) is dict:
+                    tmp_dict[key]["folder"] = data_folder
+            data_description = data_description | tmp_dict
+
+    processed_data = process_data(ids_to_plot, data_description)
+
+    plot_data(processed_data, enable_pitch_plotting=enable_pitch_plotting)

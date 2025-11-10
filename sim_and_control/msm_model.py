@@ -785,7 +785,10 @@ class MSM_Environment(gym.Env):
             action = -1 * action
 
         if self.enable_action_filtering:
-            tmp = np.array([action,])
+            if type(action) is float:
+                tmp = np.array([action,])
+            else:
+                tmp = action
             action = np.mean(np.hstack([tmp,  self.environment.simulation_data["control_value"][-3:]]))  # 3 works well for the original DQN agent
 
 
