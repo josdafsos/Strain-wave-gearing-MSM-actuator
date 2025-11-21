@@ -24,6 +24,11 @@ def input_sync(app, coil_range=None, param_range=None, new_value=None):
             ui["slider"].set(new_value)
             ui["entry"].delete(0, "end")
             ui["entry"].insert(0, str(new_value))
+            # print(f"{new_value} - {app.controller.values[(coil_id, param_idx)]}")
+            if int(new_value) != app.controller.values[(coil_id, param_idx)]:
+                ui["entry"].configure(border_color="yellow")
+            else:
+                ui["entry"].configure(border_color="blue")
 
 
 def toggle_lock(app, param_idx, button):
@@ -35,7 +40,7 @@ def toggle_lock(app, param_idx, button):
     if app.lock_states[param_idx]:
         button.configure(image=app.locked_image)
 
-        # When activating the lock, take the value of coil 0 as the base
+        # When enabling the lock, take the value of coil 0 as the base
         input_sync(app, 1, param_idx, 0)
 
     else:

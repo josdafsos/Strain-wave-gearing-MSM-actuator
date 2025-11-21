@@ -7,6 +7,7 @@ def base_data(app):
         PARAMETERS = ["Current", "ON Time", "OFF Time", "Pause Time"]
         UNITS = ["mA", "ms", "ms", "ms"]
         TOP_VALUES = [3000, 1000, 1000, 1000]
+        PARAMETERS_ACR = ["C", "TON", "TOFF", "TP"]
     else:
         NUM_COILS = 1
         PARAMETERS = ["Frequency", "ON Time"]
@@ -18,6 +19,7 @@ def base_data(app):
     app.parameters = PARAMETERS
     app.units = UNITS
     app.top_values = TOP_VALUES
+    app.parameters_acr = PARAMETERS_ACR
     app.top_values_orig = deepcopy(TOP_VALUES)
 
     app.values = {

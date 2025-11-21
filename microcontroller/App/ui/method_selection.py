@@ -7,9 +7,9 @@ class MethodWindow(ctk.CTkToplevel):
         self.title("Select Control Method")
         self.geometry("350x200+1100+300")
         self.resizable(False, False)
-        self.method = None  # Result stored here
+        self.method = None  # Store the user's choice
 
-        # Center frame for layout consistency
+        # Center frame for layout
         frame = ctk.CTkFrame(self, corner_radius=12)
         frame.pack(expand=True, fill="both", padx=20, pady=20)
 
@@ -40,7 +40,7 @@ class MethodWindow(ctk.CTkToplevel):
         )
         btn_group.pack(pady=6)
 
-        # Make this window modal → blocks interaction with the main UI
+        # Make this window modal → block interaction with the main UI
         self.grab_set()
         self.focus_force()
 
