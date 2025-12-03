@@ -1,9 +1,9 @@
 def input_sync(app, coil_range=None, param_range=None, new_value=None):
 
     if new_value is not None and isinstance(coil_range, int) and isinstance(param_range, int) and app.lock_states[param_range]:
-        for coil_id in range(app.num_coils):
+        for coil_id in range(app.in_columns):
             app.values[(coil_id, param_range)] = new_value
-        coil_range = range(app.num_coils)
+        coil_range = range(app.in_columns)
 
     # Convert single numbers to lists
     if isinstance(coil_range, int):
@@ -13,9 +13,9 @@ def input_sync(app, coil_range=None, param_range=None, new_value=None):
 
     # Default values if None
     if param_range is None:
-        param_range = range(len(app.parameters))
+        param_range = range(len(app.in_parameters))
     if coil_range is None:
-        coil_range = range(app.num_coils)
+        coil_range = range(app.in_columns)
 
     for coil_id in coil_range:
         for param_idx in param_range:

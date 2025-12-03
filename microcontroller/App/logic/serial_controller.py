@@ -4,6 +4,7 @@ import serial
 import time
 from serial.tools import list_ports
 from logic.parameters import input_sync
+from ui.serial_monitor import SerialMonitor
 
 
 class SerialController:
@@ -33,6 +34,9 @@ class SerialController:
                 if msg_decoded:
                     self.last_message = msg_decoded
                     self.sync_values()
+                    if getattr(self.app, "serial_monitor", None):
+                        self.app.serial_monitor.add_text(msg_decoded)
+
                     return self.last_message
             time.sleep(0.01)  # small delay to avoid blocking CPU
 
@@ -51,12 +55,26 @@ class SerialController:
             group = ";".join(commands[i:i + commands_per_group]) + ";"
             # print("Sending:", group)
             self.serial_connection.write(group.encode())
+
+            if getattr(self.app, "serial_monitor", None):
+                self.app.serial_monitor.add_text(f">>> {group}")
+
             self.read()  # reads and updates last_message
 
     # -------------------- Connection --------------------
     def connect_to_device(self, tentative_port=None):
         ports = list_ports.comports()
-        ports = [p for p in ports if "usb" in p.description.lower()]
+
+        if self.app.system == "Linux":
+            key = "usb"
+        elif self.app.system == "Windows":
+            key = "com"
+        else:
+            print("System not known")
+            key = ""
+
+        if key:
+            ports = [p for p in ports if key in p.description.lower()]
 
         # Preferred port moved to the top
         if tentative_port:
@@ -93,7 +111,7 @@ class SerialController:
         if print_flag:
             print("Parsing response:\n", response)
 
-        for coil_id in range(self.app.num_coils):
+        for coil_id in range(self.app.in_columns):
             for parameter_id in range(len(self.app.parameters_acr)):
                 str_to_find = f"({self.app.parameters_acr[parameter_id]}{coil_id+1}) = "
                 pattern = re.escape(str_to_find) + r"([-+]?\d+(?:,\d+)?)"
@@ -109,16 +127,20 @@ class SerialController:
     # -------------------- Write app values to device --------------------
     def app_to_controller(self):
         parts = []
-        for coil_id in range(self.app.num_coils):
+        for coil_id in range(self.app.in_columns):
             for parameter_id in range(len(self.app.parameters_acr)):
                 param = self.app.parameters_acr[parameter_id]
                 val_to_write = self.app.values.get((coil_id, parameter_id), None)
                 current_value = self.values.get((coil_id, parameter_id), None)
                 if val_to_write != current_value:
                     str_to_write = f"{val_to_write:.3f}".replace(".", ",")
-                    parts.append(f"{param}{coil_id + 1}={str_to_write}")
+                    if self.app.control_method == "Coil-based":
+                        parts.append(f"{param}{coil_id + 1}={str_to_write}")
+                    else:
+                        parts.append(f"{param}={str_to_write}")
         if not parts:
             self.app.show_message("All values are already up to date!")
             return
         self.write(";".join(parts) + ";")
         input_sync(self.app)
+        self.app.show_message("✅ Parameters sent and synchronized!")

@@ -8,12 +8,9 @@ def create_lock_column(app):
     """
     Creates the left column with lock icons for each parameter.
     """
-    app.input_container = ctk.CTkFrame(app, corner_radius=10)
-    app.input_container.pack(fill="x", padx=5, pady=2.5)
-
     lock_frame = ctk.CTkFrame(app.input_container, corner_radius=10, fg_color="transparent")
-    lock_frame.grid(row=0, column=0, rowspan=len(app.parameters) + 1, sticky="ns", padx=2.5)
-    app.input_container.grid_columnconfigure(0, weight=1)
+    lock_frame.grid(row=0, column=0, rowspan=len(app.in_parameters) + 1, sticky="ns", padx=2.5)
+    app.input_container.grid_columnconfigure(0, weight=0)
     app.input_container.grid_rowconfigure(0, weight=1)
 
     title = ctk.CTkLabel(lock_frame, text="Lock", font=("Arial", 18, "bold"))
@@ -24,9 +21,9 @@ def create_lock_column(app):
     app.unlocked_image = ctk.CTkImage(Image.open("Images/unlocked.png"), size=(25, 25))
 
     # Track lock states (True = locked)
-    app.lock_states = [True] * len(app.parameters)
+    app.lock_states = [True] * len(app.in_parameters)
 
-    for param_idx in range(len(app.parameters)):
+    for param_idx in range(len(app.in_parameters)):
         lock_frame.grid_rowconfigure(param_idx + 1, minsize=80)
         lock_button = ctk.CTkButton(
             lock_frame,

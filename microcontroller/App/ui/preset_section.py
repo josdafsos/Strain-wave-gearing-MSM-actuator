@@ -5,7 +5,7 @@ import time
 
 def create_preset_window(app):
     preset_container = ctk.CTkFrame(app.option_container, corner_radius=10)
-    preset_container.grid(row=0, column=1, sticky="nesw", padx=2.5)
+    preset_container.grid(row=0, column=1, sticky="news", padx=2.5)
 
     title_label = ctk.CTkLabel(preset_container, text="Preset", font=("Arial", 18, "bold"))
     title_label.pack(padx=10, pady=5)

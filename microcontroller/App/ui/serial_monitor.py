@@ -4,18 +4,21 @@ from PIL import Image
 class SerialMonitor:
     def __init__(self, app):
         self.app = app
-        self.open_serial_monitor()
+        self.app.serial_monitor = self
 
     def open_serial_monitor(self):
         self.serial_window = ctk.CTkToplevel(self.app)
         self.serial_window.title("Serial Monitor")
         self.serial_window.geometry("1100x600+1000+200")
 
+        # Bind the close event
+        self.serial_window.protocol("WM_DELETE_WINDOW", self.on_close)
+
         # ==========================
         # MAIN GRID CONFIGURATION
         # ==========================
-        self.serial_window.grid_rowconfigure(0, weight=1)  # expandable textbox
-        self.serial_window.grid_rowconfigure(1, weight=0)  # input frame not expandable
+        self.serial_window.grid_rowconfigure(0, weight=1)
+        self.serial_window.grid_rowconfigure(1, weight=0)
         self.serial_window.grid_columnconfigure(0, weight=1)
 
         # ==========================
@@ -24,7 +27,7 @@ class SerialMonitor:
         self.output_box = ctk.CTkTextbox(
             self.serial_window,
             font=("Consolas", 15),
-            state="disabled"  # user cannot edit
+            state="disabled"
         )
         self.output_box.grid(row=0, column=0, sticky="nsew", padx=10, pady=(10, 5))
 
@@ -33,7 +36,7 @@ class SerialMonitor:
         # ==========================
         input_frame = ctk.CTkFrame(self.serial_window)
         input_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 10))
-        input_frame.grid_columnconfigure(0, weight=1)  # entry expands horizontally
+        input_frame.grid_columnconfigure(0, weight=1)
 
         self.input_entry = ctk.CTkEntry(
             input_frame,
@@ -51,14 +54,23 @@ class SerialMonitor:
             input_frame,
             text="Send",
             text_color="black",
-            font=("Arial", 16, "bold"),  # larger and bold text
+            font=("Arial", 16, "bold"),
             image=send_image,
-            compound="right",  # text on left, image on right
+            compound="right",
             width=90,
             height=30,
             command=self.send_message
         )
         send_button.grid(row=0, column=1)
+
+    # ==========================
+    # CLOSE EVENT HANDLER
+    # ==========================
+    def on_close(self):
+        # Delete the reference in the app
+        self.app.serial_monitor = None
+        # Destroy the window
+        self.serial_window.destroy()
 
     # ==========================
     # METHOD TO DISPLAY TEXT IN THE MONITOR
@@ -68,7 +80,7 @@ class SerialMonitor:
         self.output_box.configure(state="normal")
         self.output_box.insert("end", text + "\n")
         self.output_box.configure(state="disabled")
-        self.output_box.see("end")  # auto-scroll
+        self.output_box.see("end")
 
     # ==========================
     # SEND MESSAGE
@@ -77,13 +89,6 @@ class SerialMonitor:
         text = self.input_entry.get().strip()
         if text == "":
             return
-
-        # Show in monitor
-        self.add_text(f">>> {text}")
         self.app.controller.write(text)
-
-        # Read the answer from the controller
         answer = self.app.controller.last_message
-        self.add_text(answer)
-
         self.input_entry.delete(0, "end")
