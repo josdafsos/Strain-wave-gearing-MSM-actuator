@@ -134,7 +134,7 @@ end
 % The msm full length is considered to be at fully extended position.
 if pitch_type == "prototype"
     msm_length = 20e-3; % meters
-    msm_width = 2.5e-3;   % meters
+    msm_width = 2.3e-3;   % meters. The actual width of the sticks is 2.5 mm
     msm_height = 1e-3;  % meters
 else
     if ~exist('msm_length','var'); msm_length = 10e-3; end % meters

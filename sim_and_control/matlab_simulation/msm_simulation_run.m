@@ -3,10 +3,11 @@ clear
 for plates_cnt_iter = [4]  % options: 4 6 8
     disp(strcat("now computing for ", string(plates_cnt_iter), " tooth plates"))
     % for linear motion:
-    max_load_4 = 2.05 : 0.05 : 7;
+    max_load_4 = 2.825 : 0.025 : 3.0; % 2.75 is max
     max_load_6 = 69.0 : 3 : 140;
     max_load_8 = 46 : 2 : 250;
     interrupt_on_halt = false; % If true stops simulations for a particular parametewrs setup
+    set_zero_velocity_on_halt = false;
     % for rotary motion:
 %     max_load_4 = 0.0 : 0.05 : 2.5;
 %     max_load_6 = 0.0 : 0.075 : 3.0;
@@ -18,17 +19,17 @@ for tooth_pitch_iter = ["prototype"] % options: "small" or "big" or "force_optim
 iter = 1;
 while iter <= length(max_load_vec{(plates_cnt_iter - 2) / 2})
     if stop_force_iteration; break; end % see the variable declaration explanation
-    clearvars -except iter plates_cnt_iter max_load_vec tooth_pitch_iter stop_force_iteration interrupt_on_halt
+    clearvars -except iter plates_cnt_iter max_load_vec tooth_pitch_iter stop_force_iteration interrupt_on_halt set_zero_velocity_on_halt
 
     % --- simulation control parameters ---
     sim_type = "push_spring";      % options:  "push_spring" "push_push_linear" "push_spring_rotation" "push_push_rotation"
     tb_type = 1;                        % Twin boundary type: options: 1 or 2
-    SIMULATION_TIME = 0.04;             % seconds
+    SIMULATION_TIME = 0.08;             % seconds
     simplified_visualization = true;    % poor visualization, but significantly faster computations   
-    continue_iteration_on_halt = false; % If a halt state is detected and the parameter is false, then the simulation will be stopped for this particular setup, and the new simulaiton will be started for the next setup
+    continue_iteration_on_halt = true;  % was false % If a halt state is detected and the parameter is false, then the simulation will be stopped for this particular setup, and the new simulaiton will be started for the next setup
 
     % --- simulation execution ---
-    parallel_simulations_cnt = 8;  % simulations can be parallelized between CPUs
+    parallel_simulations_cnt = 1;  % simulations can be parallelized between CPUs
     tooth_plates_cnt = plates_cnt_iter;
     pitch_type = tooth_pitch_iter;
 
@@ -44,7 +45,7 @@ while iter <= length(max_load_vec{(plates_cnt_iter - 2) / 2})
     useful_load_list = max_load_vec{(plates_cnt_iter - 2) / 2}(iter : iter + upper_index_limit - 1);
     model = 'MSM_strain_wave_actuator';
     load_system(model)
-    set_param(model,'SimMechanicsOpenEditorOnUpdate','off')
+    set_param(model,'SimMechanicsOpenEditorOnUpdate','off')  % off
     for i = 1 : upper_index_limit
         in(i) = Simulink.SimulationInput(model);
         in(i) = in(i).setVariable('useful_load', -useful_load_list(i));
@@ -66,7 +67,7 @@ while iter <= length(max_load_vec{(plates_cnt_iter - 2) / 2})
         filename = strcat(sim_type, "_load_", replace(string(useful_load_list(i)), ".", "_"),...
             "_N_plates_cnt_", string(tooth_plates_cnt), "_sim_time_", replace(string(SIMULATION_TIME), ".", "_"), "_tb_type_", string(tb_type), '.mat');
         full_path = strcat(folder_name, filesep, filename);
-        quit_on_halt = save_sim_result(out, full_path, quit_on_halt, useful_load_list(i));
+        quit_on_halt = save_sim_result(out, full_path, quit_on_halt, useful_load_list(i), set_zero_velocity_on_halt);
         quit_on_halt = quit_on_halt & interrupt_on_halt; % don't automatically quit if user disables it
     end
 
