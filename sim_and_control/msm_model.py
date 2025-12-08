@@ -553,7 +553,7 @@ class MSMLinear():
         plt.title("Instant velocity Over Time")
         plt.legend()
         plt.grid()
-        plt.show()
+        plt.show(block=False)
 
     def plot_rack_position(self, desired_position=None):
         if desired_position is None:
@@ -572,7 +572,7 @@ class MSMLinear():
         plt.title("Rack position Over Time")
         plt.legend()
         plt.grid()
-        plt.show()
+        plt.show(block=False)
 
     def plot_rack_average_velocity(self):
         time_vec = self.simulation_data["time"][(utils.sequence_length + 1):]
@@ -588,7 +588,7 @@ class MSMLinear():
         plt.title("Rack average velocity over Time")
         plt.legend()
         plt.grid()
-        plt.show()
+        plt.show(block=False)
 
     def plot_tb_velocity(self):
         time_vec = self.simulation_data["time"][1:]
@@ -602,7 +602,7 @@ class MSMLinear():
         plt.title("Joint Position Over Time")
         plt.legend()
         plt.grid()
-        plt.show()
+        plt.show(block=False)
 
     def plot_control_value(self):
         time_vec = self.simulation_data["time"][1:]
@@ -615,7 +615,7 @@ class MSMLinear():
         plt.title("Control value Over Time")
         plt.legend()
         plt.grid()
-        plt.show()
+        plt.show(block=False)
 
 class MSM_Environment(gym.Env):
 

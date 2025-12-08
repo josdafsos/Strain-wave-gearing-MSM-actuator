@@ -9,6 +9,7 @@ json structure must be as following:
                        <OPTIONAL ATTRIBUTE, default 1>, "scaler" = <coefficient to linearly scale the dat to the corresponding units>,
                        <OPTIONAL ATTRIBUTE, default 0>, "time_offset" = <offset from the start time, will shift the data_description timeline>
                        <OPTIONAL ATTRIBUTE, default 0>, "start_at_zero" = <0 or 1 defines if the data must start from 0, i.e. it will be offsetted>
+                       <OPTIONAL ATTRIBUTE, default 2>, "line_width" - defines the width of the plotted curve
                        }
 """
 from os import path
@@ -20,12 +21,15 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 
-def get_color(index: int) -> str:
+def get_color(index: int, units_cnt: int) -> str:
     """
     Generates colors for plots
     :param index: id of the requested color
     :return: color string accepted by plotly
     """
+    if units_cnt == 1:
+        return 'black'  # if only one type of unit is plotted then the axes are colored black
+
     colors_list = ['blue',
                    'red',
     'green',
@@ -46,13 +50,13 @@ def plot_data(data_list: list[dict], enable_pitch_plotting: bool = False) -> Non
         units_set.add(data["unit"])
 
     units = list(units_set)
-    name_mapping = {"mm": "Rack position", "mm/s": "Rack velocity", "V": "Coil voltage"}
-    names = [name_mapping[x] for x in units if x in name_mapping]
+
+    names = [unit_mapping[x] for x in units if x in unit_mapping]
 
     position_range = (0, 0)  # used for stripes plotting
 
     # Define base offset step for each additional y-axis (so they don’t overlap)
-    offset_step = 0.05
+    offset_step = 0.070
     # Create figure
     fig = go.Figure()
     if len(units) > 2:
@@ -71,11 +75,12 @@ def plot_data(data_list: list[dict], enable_pitch_plotting: bool = False) -> Non
                     x=data["time"],
                     y=data["values"],
                     name=f"{name} ({unit})",
-                    yaxis=f'y{i + 1}'
+                    yaxis=f'y{i + 1}',
+                    line=dict(width=data["line_width"])
                 ))
             if data["unit"] == 'mm':  # used for scaling stripes if the tooth pitch is drawn
                 position_range = (min(data["values"]), max(data["values"]))
-        new_color = get_color(i)
+        new_color = get_color(i, len(units))
         # Create corresponding y-axis
         if i == 0:
             # Primary left axis
@@ -107,7 +112,8 @@ def plot_data(data_list: list[dict], enable_pitch_plotting: bool = False) -> Non
         xaxis=dict(title='Time (s)'),
         title='Multi-Axis Time Series',
         legend=dict(orientation='h', y=-0.2),
-        plot_bgcolor="white"
+        plot_bgcolor="white",
+        font=dict(size=30)
     )
 
     if enable_pitch_plotting and "mm" in units:
@@ -137,6 +143,7 @@ def process_data(ids_to_process, data_description: dict, ):
 
         time = time - np.min(time)
         time = time + float(cur_dict.get('time_offset', 0))
+        cur_dict["line_width"] = float(cur_dict.get('line_width', 2))
 
         values = values * float(cur_dict.get('scaler', 1))
         if "start_at_zero" in cur_dict and bool(cur_dict["start_at_zero"]):
@@ -150,13 +157,28 @@ def process_data(ids_to_process, data_description: dict, ):
 
 if __name__ == "__main__":
     # --- available settings ---
+    ids_to_plot: list[str | int] = ["m23", "m24", "m25" ]  # IDs of the data_description samples to be plotted
+    # [2, 1 ] rack velocity and position plot, low frequency
+    # ["f67", ] force plot
+    # ["m26", "m27", "m28" ] PWM visible, plots for 2.5 Amps current in the coil
+    # ["m38", "m39", "m40"]  plots for 3 Amps current in the coil
     # plots 55, 56 are good for comparison with simulation data, first good offset "0.073" seconds.
-    ids_to_plot: list[str | int] = ["vel1", 55, ]  # IDs of the data_description samples to be plotted
+    # ["vel1", 55, ] First "time_offset": "0.209", Second: offset "0.073" or "0.043" seconds
     enable_pitch_plotting = False  # if true plot background will be colored with stripes of pitch height
 
     # --- rest of the script ----
     data_json_list: list[str] = ["setup_031125.json",
-                                 "simulations_description.json"]  # name of the description file to be used by parser
+                                 "simulations_description.json",
+                                 "setup_251025.json",
+                                 "setup_191125.json"]  # name of the description file to be used by parser
+    unit_mapping = {"mm": "Rack position",
+                    "mm/s": "Rack velocity",
+                    "V": "Coil voltage",
+                    "G": "Magnetic induction in the gap",
+                    "T": "Magnetic induction in the gap",
+                    "A": "Coil current",
+                    "N": "Output force"}
+
 
     data_description = {}
     for data_json in data_json_list:

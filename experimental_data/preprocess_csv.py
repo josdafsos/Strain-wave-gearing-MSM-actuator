@@ -10,11 +10,13 @@ import pandas as pd
 
 
 if __name__ == "__main__":
-    data_folder: str = "measurements_031125"  # name of the folder for the csv files to be processed
+    data_folder: str = "measurements_191125"  # name of the folder for the csv files to be processed
+    new_prefix: str = "f"  # this prefix will be added to all the files
     separator: str = ","  # column separator in csv file
 
     files = glob.glob(os.path.join(data_folder, '*.csv'))
     min_length: int = 30  # maximum length of a header column, everything shorter than this will be removed
+    file_cnt = 0
     for file in files:
         df = pd.read_csv(file, header=None)  #, sep=separator, engine='python')
 
@@ -28,7 +30,10 @@ if __name__ == "__main__":
 
         new_file_name = file.split('\\')[-1][:-4]  # removing the path and .csv
         new_file_name = re.sub(r'[A-Za-z]', '', new_file_name)
-        new_file_name = str(int(new_file_name)) + '.csv'  # removing zeros from left
+        new_file_name = new_prefix + str(int(new_file_name)) + '.csv'  # removing zeros from left
 
         stacked_df.to_csv(os.path.join(data_folder, new_file_name), index=False, header=False)
+
+        file_cnt += 1
+    print(file_cnt, " files have been processed")
 

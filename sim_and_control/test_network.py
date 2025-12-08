@@ -28,7 +28,7 @@ def make_env(action_discretization_cnt=None, is_sign_inversed=False, enable_filt
     global velocity_setpoint, external_force
     return msm_model.MSM_Environment(setpoint_limits=velocity_setpoint,
                                      force_limits=external_force,
-                                     simulation_time=5,  # 0.06
+                                     simulation_time=0.5,  # 0.06
                                      action_discretization_cnt=action_discretization_cnt,  # for discrete action space
                                      enable_action_filtering=enable_filtering,  # useful for discrete action space
                                      inverse_sign_on_negative_ref=is_sign_inversed,
@@ -42,7 +42,7 @@ def run_sim(model, predict_func, model_params, render_environment, enable_plots)
     if model_params["type"] == "dqn":
         env = make_env(action_discretization_cnt=20, is_sign_inversed=True, enable_filtering=True)  # TODO for pure agent comparison filtering was disabled
     elif model_params["type"] == "ppo":
-        env = make_env(is_sign_inversed=True, enable_filtering=True)
+        env = make_env(is_sign_inversed=True, enable_filtering=False)
     else:
         env = make_env(is_sign_inversed=False, enable_filtering=False)
     obs, _ = env.reset()
@@ -136,7 +136,6 @@ def run_sim(model, predict_func, model_params, render_environment, enable_plots)
 
 
     return env, result
-
 
 def run_neat(model_params, render_environment=True, enable_plots=False):
     print("running neat")
@@ -478,10 +477,10 @@ if __name__ == '__main__':
     load_existing_data = False
     data_to_load = 'ppo_sac_dqn_non-filtered_pid_150_steps_6_forces.pickle'
     save_data = False  # if True data_description obtained during the nun will be saved
-    is_position_control = True  # toggles position / velocity control mods, global variable
-    plot_comparisons = True  # enables plotting of combined agents data_description selected at the bottom of the script
+    is_position_control = False  # toggles position / velocity control mods, global variable
+    plot_comparisons = False  # enables plotting of combined agents data_description selected at the bottom of the script
     render_environment = False  # enables visualization of the simulation
-    enable_individual_plots = False  # separate individual plots will be shown after each experiment for every agent
+    enable_individual_plots = True  # separate individual plots will be shown after each experiment for every agent
 
     # --- agents ---
     # network types: # "neat" "sac" "ppo" "pid"
@@ -515,8 +514,8 @@ if __name__ == '__main__':
     #      "postfix": "zero vel 1e6, 3x256 layers", "id": 4})
 
     # Note this one is used in the publication as "constant force trained" use it for comparison
-    networks.append(
-        {"type": "dqn", "file": "run_20_best_dqn_32_obs_4000_Hz_freq_167000000_steps", "id": 4})
+    # networks.append(
+    #     {"type": "dqn", "file": "run_20_best_dqn_32_obs_4000_Hz_freq_167000000_steps", "id": 4})
     # "postfix": "correct zero vel 1e7, 3x256 layers",  NOTE: USED IN PUBLICATION
 
     # pid pid, "pid" = 1
@@ -532,15 +531,18 @@ if __name__ == '__main__':
     position_controllers_list.append({"type": "position pid", "file": "", "id": 5, "kp": 90, "ki": 0, "kd": 0})
 
     # --- reference velocity and position settings ---
-    # velocity_range = 0.005  # (0.005, 0.010)
-    velocity_range = np.linspace(0.001, 0.011, 3)
+    velocity_range = 0.005  # (0.005, 0.010)
+    # velocity_range = np.linspace(0.001, 0.011, 3)
     force_range = -2.0
     # force_range = np.linspace(-1, -5, 3)
     position_trajectory = []  # global variable
     x = np.linspace(0, 2*np.pi, 8000)
     y = (np.sin(x) + 1) / 1000
     position_trajectory = y  # [0.001, 0.001]  #
-    # --- end of settings ---
+
+
+    # ---------- end of settings --------------
+    # ------------------------------------------------------------------------------------------------------------------------
 
     current_position_controller: dict | None = None  # global variable
     velocity_setpoint = None
@@ -575,3 +577,4 @@ if __name__ == '__main__':
         #                                     "max transition velocity rmse"])
         # plot_velocity_tracking(processed_environments)
 
+    plt.show()  # this line prevents all matplotlib plots from being automatically closed at the end of this script

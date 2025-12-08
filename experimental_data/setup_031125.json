@@ -5,12 +5,12 @@
   },
     "1": {
     "unit": "mm/s",
-    "scaler": "10",
+    "scaler": "-10",
     "time_offset": "0.0000154"
   },
     "2": {
     "unit": "mm",
-    "scaler": "0.2",
+    "scaler": "-0.2",
     "time_offset": "0.0"
   },
   "3": {
@@ -222,12 +222,12 @@
   },
     "55": {
     "unit": "mm/s",
-    "scaler": "20",
+    "scaler": "-20",
     "time_offset": "0.0000161"
   },
     "56": {
     "unit": "mm",
-    "scaler": "1"
+    "scaler": "-1"
   },
   "57": {
     "unit": "V"
