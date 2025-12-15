@@ -4,78 +4,119 @@
 import customtkinter as ctk
 import platform
 from logic.serial_controller import SerialController
-
 from config import base_data
-from ui.top_bar import create_top_frame
-from ui.lock_column import create_lock_column
-from ui.bottom_bar import create_bottom_bar
-from ui.input_section import create_coil_sections
-from ui.option_panel import create_option_panel
-from ui.preset_section import create_preset_window
-# from ui.drop_down import create_drop_down
+import ui
 
 
 class App(ctk.CTk):
+    """
+    Main application window for microcontroller control.
+
+    Attributes:
+        system (str): Operating system name (Windows, Linux, etc.).
+        text_window (CTkLabel or similar): Temporary message display widget.
+        _after_id (int): ID of the scheduled after() event for clearing messages.
+        controller (SerialController): Handles communication with the microcontroller.
+        input_container (CTkFrame): Container for the coil/sequence input section.
+    """
     def __init__(self):
         super().__init__()
+
+        # Detect operating system
         self.system = platform.system()
 
+        # Configure main window
         self.title("Microcontroller App")
         self.geometry("1000x800+1000+200")
 
-        # self.control_method = "Coil-based"
-
-        # Message window reference
+        # Initialize message system
         self.text_window = None
         self._after_id = None
 
+        # Initialize serial controller for device communication
         self.controller = SerialController(self)
 
-        # create_drop_down(self)
-        create_top_frame(self)  # creates only the top bar
+        # -----------------------------
+        # UI SETUP
+        # -----------------------------
+        ui.create_top_frame(self)  # Creates only the top bar (stop button, dropdown, theme)
 
-        self.create_input_section()
+        self.create_input_section()  # Creates the main input section (coil or sequence)
 
-        create_option_panel(self)
-        create_preset_window(self)
+        ui.create_option_panel(self)  # Options like Top Value Reset, Continuous Send
+        ui.create_preset_window(self)  # Preset buttons
 
-        create_bottom_bar(self)  # send button + message
+        ui.create_bottom_bar(self)  # Bottom bar with send button + message display
 
+        # Attempt to connect to device at default port
         self.controller.connect_to_device("/dev/ttyUSB0")
 
-        # self.update_idletasks()  # Calculate the required size
-        # self.geometry(f"{self.winfo_reqwidth()}x{self.winfo_reqheight()}")
-
-
+    # -----------------------------
+    # MESSAGE HANDLING
+    # -----------------------------
     def _clear_message(self):
+        """Clears the text message in the message window."""
         if self.text_window:
             self.text_window.configure(text="")
         self._after_id = None
 
     def show_message(self, msg, duration=10):
+        """
+        Displays a temporary message in the UI.
+
+        Args:
+            msg (str): Message to display.
+            duration (int): Time in seconds before message is cleared.
+        """
         if self.text_window:
             self.text_window.configure(text=msg)
 
+            # Cancel any previously scheduled clear
             if self._after_id is not None:
                 self.after_cancel(self._after_id)
                 self._after_id = None
 
+            # Schedule message clearing
             self._after_id = self.after(duration*1000, self._clear_message)
 
+    # -----------------------------
+    # INPUT SECTION CREATION
+    # -----------------------------
     def create_input_section(self):
-        if hasattr(self, "input_container"):
-            self.input_container.destroy()
+        """
+        Creates or refreshes the main input section for coils or sequences.
 
+        - Destroys previous container if it exists.
+        - Calls base_data() to populate default parameters.
+        - Adds lock column if control method is "Coil-based".
+        - Creates coil sections (sliders, entries, etc.).
+        """
+        if hasattr(self, "input_container"):
+            self.input_container.destroy()  # Remove old input section
+
+        # Main container frame for input section
         self.input_container = ctk.CTkFrame(self, corner_radius=10)
         self.input_container.grid(row=1, column=0, sticky="ew", padx=5, pady=2.5)
 
+        # Populate base data (default parameters, top values, etc.)
         base_data(self)
-        if self.control_method == "Coil-based":
-            create_lock_column(self)
-        create_coil_sections(self)
 
+        # Add lock column if using coil-based control
+        if self.control_method == "Coil-based":
+            ui.create_lock_column(self)
+
+        # Create the main coil/sequence sliders and entries
+        ui.create_coil_sections(self)
+
+
+# -----------------------------
+# MAIN EXECUTION
+# -----------------------------
 if __name__ == "__main__":
+    # Set appearance mode and theme before launching app
     ctk.set_appearance_mode("dark")
     ctk.set_default_color_theme("green")
+
+    # Create the main app instance and start event loop
     app = App()
     app.mainloop()

@@ -1,47 +1,55 @@
-def input_sync(app, coil_range=None, param_range=None, new_value=None):
+"""
+This function take the new value which has been input in the app,
+- update the corresponding app value dictionary and
+- synchronize the input options (slider and entry box) to have the same value
+"""
+def input_sync(app,
+               coil_id_new_value: int = None,
+               param_idx_new_value: int = None,
+               new_value: int = None):
 
-    if new_value is not None and isinstance(coil_range, int) and isinstance(param_range, int) and app.lock_states[param_range]:
-        for coil_id in range(app.in_columns):
-            app.values[(coil_id, param_range)] = new_value
-        coil_range = range(app.in_columns)
+    """ ===== In this first section, the function store the new value in the app dictionary ===== """
 
-    # Convert single numbers to lists
-    if isinstance(coil_range, int):
-        coil_range = [coil_range]
-    if isinstance(param_range, int):
-        param_range = [param_range]
+    # If a coil and parameter are specified, the function will work only on this
+    if coil_id_new_value is not None and param_idx_new_value is not None:
 
-    # Default values if None
-    if param_range is None:
-        param_range = range(len(app.in_parameters))
-    if coil_range is None:
-        coil_range = range(app.in_columns)
+        # If a new value is provided and the coils are locked together the app values corresponding to that parameter are all updated
+        if new_value is not None and app.lock_states[param_idx_new_value]:
+            for coil_id in range(app.in_columns):
+                app.values[(coil_id, param_idx_new_value)] = new_value
+            coil_to_sync = range(app.in_columns)
 
-    for coil_id in coil_range:
-        for param_idx in param_range:
-            new_value = app.values[(coil_id, param_idx)]
+        # If instead the coils aren't locked, only one value is updated
+        elif new_value is not None:
+            app.values[(coil_id_new_value, param_idx_new_value)] = new_value
+            coil_to_sync = [coil_id_new_value]
+
+        else:
+            # Here there isn't a new value, this function is used to just sync the input of the specified par. and coil
+            coil_to_sync = [coil_id_new_value]
+
+        param_to_sync = [param_idx_new_value]
+
+    # If coil and parameter are not specified, the function is used to just synchronize ALL sliders and entries
+    else:
+        coil_to_sync = range(app.in_columns)
+        param_to_sync = range(len(app.in_parameters))
+
+    """ ===== In this second section, the value in the dictionary is used to sync the input ===== """
+
+    for coil_id in coil_to_sync:
+        for param_idx in param_to_sync:
+            new_value = app.values[(coil_id, param_idx)] # Get the value from the dictionary
             ui = app.inputs[(coil_id, param_idx)]
-            ui["slider"].set(new_value)
+            ui["slider"].set(new_value) # Set the correct slider value
             ui["entry"].delete(0, "end")
-            ui["entry"].insert(0, str(new_value))
-            # print(f"{new_value} - {app.controller.values[(coil_id, param_idx)]}")
+            ui["entry"].insert(0, str(new_value)) # Input the value in the entry
+            # print(f"{new_value} - {app.controller.values[(coil_id, param_idx)]}") ¤ Print the app and controller values
+            # Modify the entry border colour depending if the app and controller values are equal
             if int(new_value) != app.controller.values[(coil_id, param_idx)]:
                 ui["entry"].configure(border_color="yellow")
             else:
                 ui["entry"].configure(border_color="blue")
 
 
-def toggle_lock(app, param_idx, button):
-    """
-    Switch lock state and swap icon.
-    """
-    app.lock_states[param_idx] = not app.lock_states[param_idx]
 
-    if app.lock_states[param_idx]:
-        button.configure(image=app.locked_image)
-
-        # When enabling the lock, take the value of coil 0 as the base
-        input_sync(app, 1, param_idx, 0)
-
-    else:
-        button.configure(image=app.unlocked_image)
