@@ -41,7 +41,7 @@ class SerialController:
         if self.app.system == "Linux":
             ports = [p for p in ports if "usb" in p.subsystem.lower()]
         elif self.app.system == "Windows":
-            ports = [p for p in ports if "usb" in p.description.lower()]
+            ports = [p for p in ports if "com" in p.name.lower()]
         else:
             print("System not known, all ports scanned.")
 
