@@ -18,72 +18,11 @@ class SerialController:
         """
         self.serial_connection = None  # Serial connection object
         self.baud_rate = 115200        # Standard baud rate for communication
-        self.start_message = ["hello world", "= 0"]  # Expected device startup messages
+        self.start_message = ["hello world", "control"]  # Expected device startup messages
         self.app = app
 
         self.last_message = ""  # Last complete message received from device
         self.values = {}        # Dictionary to store parsed parameter values
-
-    # -------------------- Reading --------------------
-    def read(self, timeout=2):
-        """
-        Reads from the serial buffer until a complete message arrives or the timeout expires.
-
-        Args:
-            timeout: Maximum time in seconds to wait for a complete message.
-
-        Returns:
-            str: The last complete message received.
-        """
-        buffer = b""
-        start_time = time.time()
-
-        while time.time() - start_time < timeout:
-            if self.serial_connection.in_waiting:
-                buffer += self.serial_connection.read(self.serial_connection.in_waiting)
-
-            # Check if a complete message is in the buffer
-            if b"\r\n\r\n" in buffer:
-                msg, buffer = buffer.split(b"\r\n\r\n", 1)
-                msg_decoded = msg.decode().strip()
-                if msg_decoded:
-                    self.last_message = msg_decoded
-                    self.sync_values()  # Parse and update internal values
-
-                    # Display message in the serial monitor if it exists
-                    if getattr(self.app, "serial_monitor", None):
-                        self.app.serial_monitor.add_text(msg_decoded)
-
-                    return self.last_message
-            time.sleep(0.01)  # Avoid blocking CPU too much
-
-        print("⚠️ Timeout: incomplete message from device")
-        return self.last_message
-
-    # -------------------- Writing --------------------
-    def write(self, message, commands_per_group=4):
-        """
-        Sends commands to the device in groups and reads responses after each group.
-
-        Args:
-            message: Semi-colon-separated command string to send.
-            commands_per_group: Number of commands sent in one batch.
-        """
-        commands = [cmd.strip() for cmd in message.split(";") if cmd.strip()]
-        if not commands:
-            print("No commands found!")
-            return
-
-        for i in range(0, len(commands), commands_per_group):
-            group = ";".join(commands[i:i + commands_per_group]) + ";"
-            # Send batch of commands
-            self.serial_connection.write(group.encode())
-
-            # Show sent commands in serial monitor if exists
-            if getattr(self.app, "serial_monitor", None):
-                self.app.serial_monitor.add_text(f">>> {group}")
-
-            self.read()  # Read device response and update last_message
 
     # -------------------- Connection --------------------
     def connect_to_device(self, tentative_port=None):
@@ -100,15 +39,14 @@ class SerialController:
 
         # Filter ports based on OS
         if self.app.system == "Linux":
-            key = "usb"
+            ports = [p for p in ports if "usb" in p.subsystem.lower()]
         elif self.app.system == "Windows":
-            key = "com"
+            ports = [p for p in ports if "usb" in p.description.lower()]
         else:
-            print("System not known")
-            key = ""
+            print("System not known, all ports scanned.")
 
-        if key:
-            ports = [p for p in ports if key in p.description.lower()]
+        if not ports:
+            print("No board identifier found. Scanning all ports.")
 
         # Move preferred port to the top of the list
         if tentative_port:
@@ -120,26 +58,97 @@ class SerialController:
         # Attempt to connect to each port
         for port in ports:
             try:
-                serial_conn = serial.Serial(port.device, self.baud_rate, timeout=1)
-                time.sleep(1)
-                serial_conn.write(b"ping\n")
-
-                start_time = time.time()
-                while time.time() - start_time < 3:  # 3-second timeout
-                    response = serial_conn.read_all().decode().strip().lower()
-                    for tentative_start_message in self.start_message:
-                        if tentative_start_message in response:
-                            self.app.show_message(f"✅ Device found on: {port.device}")
-                            self.serial_connection = serial_conn
-                            self.write("Dummy_Text")  # Send dummy command to sync
-                            self.sync_values()
-                            return serial_conn
-                serial_conn.close()
+                self.serial_connection = serial.Serial(port.device, self.baud_rate, timeout=1)
+                time.sleep(0.5)
+                self.write("Dummy_Text") # Send dummy message
+                response = self.last_message # serial_conn.read_all().decode().strip().lower() # Read the answer
+                for tentative_start_message in self.start_message:
+                    if tentative_start_message in response.lower(): # Check if the expected answer is in the answer message
+                        self.app.show_message(f"✅ Device found on: {port.device}")
+                        self.write("Dummy_Text")  # Send dummy command to get the current controller values
+                        self.sync_values()
+                        return 
+                self.serial_connection.close()
             except Exception:
+                self.serial_connection = None
                 continue
 
         self.app.show_message("❌ No device found!")
         return None
+
+    # -------------------- Writing --------------------
+    def write(self, message, commands_per_group=6):
+        """
+        Sends commands to the device in groups and reads responses after each group.
+
+        Args:
+            message: Semi-colon-separated command string to send.
+            commands_per_group: Number of commands sent in one batch.
+        """
+
+        commands = [cmd.strip() for cmd in message.split(";") if cmd.strip()]
+        if not commands:
+            print("No commands found!")
+            return
+
+        for i in range(0, len(commands), commands_per_group):
+            group = ";".join(commands[i:i + commands_per_group]) + ";"
+            # Send batch of commands
+            self.serial_connection.write(group.encode())
+
+            # Show sent commands in serial monitor if exists
+            if getattr(self.app, "serial_monitor", None):
+                self.app.serial_monitor.add_text(f">>> {group}")
+
+            self.read()  # Read device response and update last_message
+
+    # -------------------- Reading --------------------
+    def read(self, timeout=60):
+        """
+        Reads from the serial buffer until a complete message arrives or the timeout expires.
+
+        Args:
+            timeout: Maximum time in seconds to wait for a complete message.
+
+        Returns:
+            str: The last complete message received.
+        """
+        buffer = b""
+        final_message_key = b""
+        start_time = time.time()
+
+        # This loop will loop will keep reading the buffer until the end of the message is detected (final_message_key) or the timeout expires.
+        while time.time() - start_time < timeout:
+
+            buffer += self.serial_connection.read_all()
+
+            if b"\n\n" in buffer: # Real board
+                final_message_key = b"\n\n"
+            # The emulator conditions will be delated when no longer needed
+            elif b"\r\n\r\n" in buffer: # Board emulator
+                final_message_key = b"\r\n\r\n"
+            elif b'Hello world\r\n' in buffer: # Board emulator - starting message
+                final_message_key = b"\r\n"
+                self.last_message = "Hello world"
+                return
+
+            # Check if a complete message is in the buffer
+            if final_message_key:
+                msg, buffer = buffer.split(final_message_key, 1)
+                msg_decoded = msg.decode().strip()
+                if msg_decoded:
+                    self.last_message = msg_decoded
+                    self.sync_values()  # Parse and update internal values
+
+                    # Display message in the serial monitor if it exists
+                    if getattr(self.app, "serial_monitor", None):
+                        self.app.serial_monitor.add_text(msg_decoded)
+
+                    return self.last_message
+            time.sleep(0.01)  # Avoid blocking CPU too much
+
+        print("⚠️ Timeout: incomplete message from device")
+        return self.last_message
 
     # -------------------- Update values --------------------
     def sync_values(self, print_flag=False):
@@ -180,7 +189,8 @@ class SerialController:
                 val_to_write = self.app.values.get((coil_id, parameter_id), None)
                 current_value = self.values.get((coil_id, parameter_id), None)
                 if val_to_write != current_value:
-                    str_to_write = f"{val_to_write:.3f}".replace(".", ",")
+                    # str_to_write = f"{val_to_write:.3f}".replace(".", ",") # For float commands
+                    str_to_write = str(int(val_to_write)) # For integer commands
                     # Format command based on control method
                     if self.app.control_method == "Coil-based":
                         parts.append(f"{param}{coil_id + 1}={str_to_write}")

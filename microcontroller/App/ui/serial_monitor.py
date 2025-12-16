@@ -15,7 +15,9 @@ class SerialMonitor:
         # Create a new top-level window for the serial monitor
         self.serial_window = ctk.CTkToplevel(self.app)
         self.serial_window.title("Serial Monitor")
-        self.serial_window.geometry("1100x600+1000+200")  # Set size and position
+        x = self.app.x - 1100
+        y = self.app.y
+        self.serial_window.geometry(f"1100x600+{x}+{y}")  # Set size and position
 
         # Bind the close event to handle cleanup
         self.serial_window.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -42,7 +44,23 @@ class SerialMonitor:
         # ==========================
         input_frame = ctk.CTkFrame(self.serial_window)
         input_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 10))
-        input_frame.grid_columnconfigure(0, weight=1)  # Entry expands horizontally
+        input_frame.grid_columnconfigure(1, weight=1)  # Entry expands horizontally
+
+        # Load icon for the clear button
+        clear_image = ctk.CTkImage(Image.open("Images/clear.png"), size=(20, 20))
+
+        clear_button = ctk.CTkButton(
+            input_frame,
+            text="Clear",
+            text_color="black",
+            font=("Arial", 16, "bold"),
+            image=clear_image,
+            compound="left",  # Place image to the left of text
+            width=90,
+            height=30,
+            command=self.clear_window
+        )
+        clear_button.grid(row=0, column=0, padx=(0, 5))
 
         # Entry widget for typing messages
         self.input_entry = ctk.CTkEntry(
@@ -50,7 +68,7 @@ class SerialMonitor:
             placeholder_text="Type a message...",
             font=("Consolas", 16)
         )
-        self.input_entry.grid(row=0, column=0, sticky="ew", padx=(0, 10))
+        self.input_entry.grid(row=0, column=1, sticky="ew", padx=5)
         self.input_entry.focus()  # Focus cursor in the entry by default
         # Bind Enter key (main keyboard and keypad) to send message
         self.input_entry.bind("<Return>", self.send_message)
@@ -71,7 +89,7 @@ class SerialMonitor:
             height=30,
             command=self.send_message
         )
-        send_button.grid(row=0, column=1)
+        send_button.grid(row=0, column=2, padx=(5, 0))
 
     # ==========================
     # CLOSE EVENT HANDLER
@@ -103,3 +121,12 @@ class SerialMonitor:
         self.app.controller.write(text)  # Send message to the controller
         answer = self.app.controller.last_message  # Optional: retrieve last response
         self.input_entry.delete(0, "end")  # Clear the input entry
+
+    # ==========================
+    # CLEAR WINDOW
+    # ==========================
+    def clear_window(self):
+        self.output_box.configure(state="normal")  # Make editable
+        self.output_box.delete("1.0", "end")  # Delete all text
+        self.output_box.configure(state="disabled")  # Make read-only again
+

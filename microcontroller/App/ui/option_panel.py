@@ -126,7 +126,7 @@ def create_option_panel(app):
     # -------------------------------------------- Serial monitor button -------------------------------------------
     # Function to open or close the serial monitor window
     def open_close_serial_monitor():
-        if hasattr(app, "serial_monitor"):
+        if hasattr(app, "serial_monitor") and app.serial_monitor is not None:
             app.serial_monitor.on_close()  # Close monitor if it exists
         else:
             SerialMonitor(app).open_serial_monitor()  # Open a new monitor

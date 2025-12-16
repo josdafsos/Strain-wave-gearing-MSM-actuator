@@ -27,7 +27,21 @@ class App(ctk.CTk):
 
         # Configure main window
         self.title("Microcontroller App")
-        self.geometry("1000x800+1000+200")
+
+        # Window dimensions
+        window_width = 1000
+        window_height = 800
+
+        # Screen dimensions
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+
+        # Identification center position
+        self.x = (screen_width * 2 // 3 - window_width // 2)
+        self.y = (screen_height // 2) - (window_height // 2)
+
+        # Set windows position and dimensions
+        self.geometry(f"{window_width}x{window_height}+{self.x}+{self.y}")
 
         # Initialize message system
         self.text_window = None
