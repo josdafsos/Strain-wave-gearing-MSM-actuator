@@ -1,7 +1,7 @@
 import customtkinter as ctk
 from PIL import Image
 from logic.parameters import input_sync
-from microcontroller.App.ui.serial_monitor import SerialMonitor
+from .serial_monitor import SerialMonitor
 
 
 def create_option_panel(app):
