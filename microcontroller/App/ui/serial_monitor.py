@@ -5,10 +5,10 @@ from PIL import Image
 class SerialMonitor:
     def __init__(self, app):
         # Store reference to the main app
+        self.switch_var = None
         self.app = app
         # Register this instance in the app for easy access
         self.app.serial_monitor = self
-        self.timestamp_status = False
 
     # ==========================
     # OPEN SERIAL MONITOR WINDOW
@@ -63,9 +63,6 @@ class SerialMonitor:
             command=self.clear_window
         )
         clear_button.grid(row=0, column=0, padx=(0, 5))
-
-        # Load icon for the clear switch
-        timestamp_image = ctk.CTkImage(Image.open(self.app.resource_path("Images/time.png")), size=(20, 20))
 
         self.switch_var = ctk.BooleanVar(value=False)
 
