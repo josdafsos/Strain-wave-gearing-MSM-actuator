@@ -42,14 +42,14 @@ class App(ctk.CTk):
 
         # Window dimensions
         window_width = 1000
-        window_height = 800
+        window_height = 750
 
         # Screen dimensions
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
 
         # Identification center position
-        self.x = (screen_width * 2 // 3 - window_width // 2)
+        self.x = (screen_width * 1 // 3 - window_width // 2)
         self.y = (screen_height // 2) - (window_height // 2)
 
         # Set windows position and dimensions

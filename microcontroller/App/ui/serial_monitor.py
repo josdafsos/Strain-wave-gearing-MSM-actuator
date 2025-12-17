@@ -1,3 +1,4 @@
+from datetime import datetime
 import customtkinter as ctk
 from PIL import Image
 
@@ -7,6 +8,7 @@ class SerialMonitor:
         self.app = app
         # Register this instance in the app for easy access
         self.app.serial_monitor = self
+        self.timestamp_status = False
 
     # ==========================
     # OPEN SERIAL MONITOR WINDOW
@@ -15,9 +17,9 @@ class SerialMonitor:
         # Create a new top-level window for the serial monitor
         self.serial_window = ctk.CTkToplevel(self.app)
         self.serial_window.title("Serial Monitor")
-        x = self.app.x - 1100
+        x = self.app.x + 1000
         y = self.app.y
-        self.serial_window.geometry(f"1100x600+{x}+{y}")  # Set size and position
+        self.serial_window.geometry(f"1150x750+{x}+{y}")  # Set size and position
 
         # Bind the close event to handle cleanup
         self.serial_window.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -44,10 +46,10 @@ class SerialMonitor:
         # ==========================
         input_frame = ctk.CTkFrame(self.serial_window)
         input_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 10))
-        input_frame.grid_columnconfigure(1, weight=1)  # Entry expands horizontally
+        input_frame.grid_columnconfigure(2, weight=1)  # Entry expands horizontally
 
         # Load icon for the clear button
-        clear_image = ctk.CTkImage(Image.open(app.resource_path("Images/clear.png")), size=(20, 20))
+        clear_image = ctk.CTkImage(Image.open(self.app.resource_path("Images/clear.png")), size=(20, 20))
 
         clear_button = ctk.CTkButton(
             input_frame,
@@ -55,12 +57,25 @@ class SerialMonitor:
             text_color="black",
             font=("Arial", 16, "bold"),
             image=clear_image,
-            compound="left",  # Place image to the left of text
+            compound="left",
             width=90,
             height=30,
             command=self.clear_window
         )
         clear_button.grid(row=0, column=0, padx=(0, 5))
+
+        # Load icon for the clear switch
+        timestamp_image = ctk.CTkImage(Image.open(self.app.resource_path("Images/time.png")), size=(20, 20))
+
+        self.switch_var = ctk.BooleanVar(value=False)
+
+        timestamp_switch = ctk.CTkSwitch(
+            input_frame,
+            text="Timestamp",
+            font=("Arial", 16, "bold"),
+            variable=self.switch_var
+        )
+        timestamp_switch.grid(row=0, column=1, padx=(5, 5))
 
         # Entry widget for typing messages
         self.input_entry = ctk.CTkEntry(
@@ -68,14 +83,14 @@ class SerialMonitor:
             placeholder_text="Type a message...",
             font=("Consolas", 16)
         )
-        self.input_entry.grid(row=0, column=1, sticky="ew", padx=5)
+        self.input_entry.grid(row=0, column=2, sticky="ew", padx=5)
         self.input_entry.focus()  # Focus cursor in the entry by default
         # Bind Enter key (main keyboard and keypad) to send message
         self.input_entry.bind("<Return>", self.send_message)
         self.input_entry.bind("<KP_Enter>", self.send_message)
 
         # Load icon for the send button
-        send_image = ctk.CTkImage(Image.open(app.resource_path("Images/send.png")), size=(18, 18))
+        send_image = ctk.CTkImage(Image.open(self.app.resource_path("Images/send.png")), size=(18, 18))
 
         # Send button next to the entry field
         send_button = ctk.CTkButton(
@@ -89,7 +104,7 @@ class SerialMonitor:
             height=30,
             command=self.send_message
         )
-        send_button.grid(row=0, column=2, padx=(5, 0))
+        send_button.grid(row=0, column=3, padx=(5, 0))
 
     # ==========================
     # CLOSE EVENT HANDLER
@@ -103,7 +118,12 @@ class SerialMonitor:
     # ==========================
     # METHOD TO DISPLAY TEXT IN THE MONITOR
     # ==========================
-    def add_text(self, text: str):
+    def add_text(self, text: str, is_input = False):
+
+        if self.switch_var.get() and is_input:
+            now = datetime.now()
+            text = now.strftime("[%H:%M:%S]") + " " + text
+
         # Normalize newlines for consistency
         text = text.replace("\r\n", "\n").replace("\r", "\n")
         self.output_box.configure(state="normal")  # Make editable temporarily
@@ -118,9 +138,8 @@ class SerialMonitor:
         text = self.input_entry.get().strip()  # Get trimmed text
         if text == "":
             return  # Ignore empty input
+
         self.app.controller.write(text)  # Send message to the controller
-        self.app.controller.read()
-        answer = self.app.controller.last_message  # Optional: retrieve last response
         self.input_entry.delete(0, "end")  # Clear the input entry
 
     # ==========================
@@ -130,4 +149,3 @@ class SerialMonitor:
         self.output_box.configure(state="normal")  # Make editable
         self.output_box.delete("1.0", "end")  # Delete all text
         self.output_box.configure(state="disabled")  # Make read-only again
-

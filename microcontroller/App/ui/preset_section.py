@@ -7,9 +7,21 @@ def create_preset_window(app):
     preset_container = ctk.CTkFrame(app.option_container, corner_radius=10)
     preset_container.grid(row=0, column=1, sticky="news", padx=2.5)
 
+    # Allow the preset panel to be centered horizontally
+    preset_container.grid_columnconfigure(0, weight=1)
+    preset_container.grid_columnconfigure(1, weight=0)
+    preset_container.grid_columnconfigure(2, weight=1)
+
+    # Keep items in central position
+    preset_container.grid_rowconfigure(0, weight=1) # ----- Expandable row -----
+    preset_container.grid_rowconfigure(1, weight=0) # Title
+    preset_container.grid_rowconfigure(2, weight=0) # Button grid
+    preset_container.grid_rowconfigure(3, weight=1) # ----- Expandable row -----
+
+
     # Title label for the Preset panel
-    title_label = ctk.CTkLabel(preset_container, text="Presets", font=("Arial", 18, "bold"))
-    title_label.pack(padx=10, pady=5)
+    title_label = ctk.CTkLabel(preset_container, text="Presets", font=("Arial", 18, "bold"), anchor="center")
+    title_label.grid(padx=10, pady=5, row=1, column=1, sticky="ew")
 
     # Define number of preset buttons in a grid
     num_columns = 4
@@ -17,7 +29,7 @@ def create_preset_window(app):
 
     # Container for holding all preset buttons
     buttons_container = ctk.CTkFrame(preset_container, corner_radius=10, fg_color="transparent")
-    buttons_container.pack()
+    buttons_container.grid(row=2, column=1, sticky="news")
 
     # Grid frame inside buttons container for precise button placement
     buttons_grid = ctk.CTkFrame(buttons_container, corner_radius=10)
@@ -33,7 +45,7 @@ def create_preset_window(app):
             duration = time.time() - btn.press_time  # Calculate press duration
             if duration >= 1:
                 btn.value = app.values.copy()  # Save current values in the preset
-                app.show_message(f"Preset {btn.id} saved with current values")
+                app.show_message(f"Preset {btn.id} saved with current values.")
                 btn.is_pressed = False  # Prevent repeated saving
             else:
                 # Check again after 50ms until long press threshold is reached
@@ -62,7 +74,7 @@ def create_preset_window(app):
                 if btn.value:
                     app.values = btn.value.copy()
                     input_sync(app)
-                    app.show_message(f"The preset option {btn.id} has been applied!")
+                    app.show_message(f"App values updated to preset {btn.id}.")
                 else:
                     app.show_message(f"The preset option {btn.id} is empty!")
             btn.is_pressed = False  # Reset press state

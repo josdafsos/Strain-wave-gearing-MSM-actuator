@@ -1,3 +1,4 @@
+from copy import deepcopy
 import customtkinter as ctk
 from PIL import Image
 from logic.parameters import input_sync
@@ -8,7 +9,7 @@ def create_option_panel(app):
     # Configure row 2 of the main app to be expandable
     app.rowconfigure(2, weight=1)
 
-    # Create the main option container frame
+    # Create the main option container frame for these button and the next presets buttons
     app.option_container = ctk.CTkFrame(app, corner_radius=10, fg_color="transparent")
     app.option_container.grid(row=2, column=0, sticky="news", padx=5, pady=2.5)
     app.option_container.grid_rowconfigure(0, weight=1)
@@ -19,9 +20,22 @@ def create_option_panel(app):
     option_frame = ctk.CTkFrame(app.option_container, corner_radius=10)
     option_frame.grid(row=0, column=0, sticky="news", padx=2.5)
 
+    # Allow the option panel columns to expand with the parent frame (option_container)
+    option_frame.grid_columnconfigure(0, weight=1)
+    option_frame.grid_columnconfigure(1, weight=0)
+    option_frame.grid_columnconfigure(2, weight=0)
+    option_frame.grid_columnconfigure(3, weight=1)
+
+    # Keep items in central position
+    option_frame.grid_rowconfigure(0, weight=1) # ----- Expandable row -----
+    option_frame.grid_rowconfigure(1, weight=0) # Title
+    option_frame.grid_rowconfigure(2, weight=0) # First buttons row
+    option_frame.grid_rowconfigure(3, weight=0) # Second buttons row
+    option_frame.grid_rowconfigure(4, weight=1) # ----- Expandable row -----
+
     # Title label for the options panel
-    title_label = ctk.CTkLabel(option_frame, text="Options", font=("Arial", 18, "bold"))
-    title_label.pack(padx=10, pady=5)
+    title_label = ctk.CTkLabel(option_frame, text="Options", font=("Arial", 18, "bold"), anchor="center")
+    title_label.grid(padx=10, pady=5, column=1, row=1, columnspan=2, sticky="ew")
 
     # Load icon for the top values reset button
     app.top_reset_icon = ctk.CTkImage(Image.open(app.resource_path("Images/max.png")), size=(25, 25))
@@ -58,7 +72,7 @@ def create_option_panel(app):
         corner_radius=10,
         command=reset_top_values
     )
-    reset_top_button.pack(padx=10, pady=10)
+    reset_top_button.grid(padx=10, pady=10, row=2, column=1, sticky="news")
 
     # -------------------------------------------- Continuous Send Button -------------------------------------------
     sync_icon_image = Image.open(app.resource_path("Images/sync.png"))  # Load icon for continuous send
@@ -75,7 +89,7 @@ def create_option_panel(app):
         height=50,
         corner_radius=10,
     )
-    continuous_send_button.pack(padx=10, pady=10)
+    continuous_send_button.grid(padx=10, pady=10, row=3, column=1, sticky="news")
 
     # Initialize rotation state of the button icon
     continuous_send_button.rotation_angle = 0
@@ -147,7 +161,33 @@ def create_option_panel(app):
             corner_radius=10,
             command=open_close_serial_monitor
         )
-        serial_button.pack(padx=10, pady=10)
+        serial_button.grid(padx=10, pady=10, row=2, column=2, sticky="news")
 
     # Create the serial monitor button
     create_serial_monitor_button()
+
+    # -------------------------------------------- Reset controller values -------------------------------------------
+
+    def reset_to_controller():
+        app.values = deepcopy(app.controller.values)
+        input_sync(app)
+
+    def create_reset_to_controller_button():
+        """Adds a button to reset the app values to the current controller values.."""
+        board_image = ctk.CTkImage(Image.open(app.resource_path("Images/board.png")), size=(30, 30))
+
+        serial_button = ctk.CTkButton(
+            option_frame,
+            text="Reset to\ncontroller",
+            text_color="black",
+            font=("Arial", 14, "bold"),
+            image=board_image,
+            width=50,
+            height=50,
+            corner_radius=10,
+            command=reset_to_controller
+        )
+        serial_button.grid(padx=10, pady=10, row=3, column=2, sticky="news")
+
+    # Create the serial monitor button
+    create_reset_to_controller_button()

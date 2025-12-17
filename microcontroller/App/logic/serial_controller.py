@@ -60,12 +60,12 @@ class SerialController:
                 self.app.show_message("⏳ Trying to connect to " + port.device)
                 self.serial_connection = serial.Serial(port.device, self.baud_rate, timeout=1)
                 time.sleep(0.5)
-                self.write("Dummy_Text") # Send dummy message
-                response = self.read(10)  # Read device response (Wait for 10s)
+                self.write("Dummy_Text", False) # Send dummy message
+                response = self.read(20)  # Read device response (Wait for 10s)
                 for tentative_start_message in self.start_message:
                     if tentative_start_message in response.lower(): # Check if the expected answer is in the answer message
                         self.app.show_message(f"✅ Device found on: {port.device}")
-                        self.write("Dummy_Text")  # Send dummy command to get the current controller values
+                        self.write("Dummy_Text", False)  # Send dummy command to get the current controller values
                         self.read(10)  # Read device response and update last_message
                         self.sync_values()
                         return 
@@ -78,28 +78,36 @@ class SerialController:
         return None
 
     # -------------------- Writing --------------------
-    def write(self, message, commands_per_group=6):
+    def write(self, message, auto_split: bool =True, commands_per_group=6):
         """
         Sends commands to the device in groups and reads responses after each group.
 
         Args:
+            auto_split: Automatically split the messages into groups.
             message: Semi-colon-separated command string to send.
             commands_per_group: Number of commands sent in one batch.
         """
 
-        commands = [cmd.strip() for cmd in message.split(";") if cmd.strip()]
-        if not commands:
-            self.app.show_message("No commands found!")
-            return
+        if auto_split:
+            commands = [cmd.strip() for cmd in message.split(";") if cmd.strip()]
+            if not commands:
+                self.app.show_message("No commands found!")
+                return
 
-        for i in range(0, len(commands), commands_per_group):
-            group = ";".join(commands[i:i + commands_per_group]) + ";"
-            # Send batch of commands
-            self.serial_connection.write(group.encode())
+            for i in range(0, len(commands), commands_per_group):
+                group = ";".join(commands[i:i + commands_per_group]) + ";"
+                # Send batch of commands
+                self.serial_connection.write(group.encode())
 
-            # Show sent commands in serial monitor if exists
-            if getattr(self.app, "serial_monitor", None):
-                self.app.serial_monitor.add_text(f">>> {group}")
+                # Show sent commands in serial monitor if exists
+                if getattr(self.app, "serial_monitor", None):
+                    self.app.serial_monitor.add_text(f">>> {group}", True)
+
+                self.read() # Read the controller answer after each send
+
+        else:
+            self.serial_connection.write(message.encode())
+
 
     # -------------------- Reading --------------------
     def read(self, timeout=60):
@@ -127,9 +135,8 @@ class SerialController:
             elif b"\r\n\r\n" in buffer: # Board emulator
                 final_message_key = b"\r\n\r\n"
             elif b'Hello world\r\n' in buffer: # Board emulator - starting message
-                final_message_key = b"\r\n"
                 self.last_message = "Hello world"
-                return
+                return self.last_message
 
             # Check if a complete message is in the buffer
             if final_message_key:
@@ -205,6 +212,5 @@ class SerialController:
 
         # Send all changed parameters to the device
         self.write(";".join(parts) + ";")
-        self.read()
         input_sync(self.app)
         self.app.show_message("✅ Parameters sent and synchronized!")
