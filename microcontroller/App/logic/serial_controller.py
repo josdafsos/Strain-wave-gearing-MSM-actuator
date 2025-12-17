@@ -4,7 +4,6 @@ import serial
 import time
 from serial.tools import list_ports
 from logic.parameters import input_sync
-from ui.serial_monitor import SerialMonitor
 
 
 class SerialController:
@@ -43,10 +42,10 @@ class SerialController:
         elif self.app.system == "Windows":
             ports = [p for p in ports if "com" in p.name.lower()]
         else:
-            print("System not known, all ports scanned.")
+            self.app.show_message("System not known, all ports scanned.")
 
         if not ports:
-            print("No board identifier found. Scanning all ports.")
+            self.app.show_message("No board identifier found. Scanning all ports.")
 
         # Move preferred port to the top of the list
         if tentative_port:
@@ -58,14 +57,16 @@ class SerialController:
         # Attempt to connect to each port
         for port in ports:
             try:
+                self.app.show_message("⏳ Trying to connect to " + port.device)
                 self.serial_connection = serial.Serial(port.device, self.baud_rate, timeout=1)
                 time.sleep(0.5)
                 self.write("Dummy_Text") # Send dummy message
-                response = self.last_message # serial_conn.read_all().decode().strip().lower() # Read the answer
+                response = self.read(10)  # Read device response (Wait for 10s)
                 for tentative_start_message in self.start_message:
                     if tentative_start_message in response.lower(): # Check if the expected answer is in the answer message
                         self.app.show_message(f"✅ Device found on: {port.device}")
                         self.write("Dummy_Text")  # Send dummy command to get the current controller values
+                        self.read(10)  # Read device response and update last_message
                         self.sync_values()
                         return 
                 self.serial_connection.close()
@@ -88,7 +89,7 @@ class SerialController:
 
         commands = [cmd.strip() for cmd in message.split(";") if cmd.strip()]
         if not commands:
-            print("No commands found!")
+            self.app.show_message("No commands found!")
             return
 
         for i in range(0, len(commands), commands_per_group):
@@ -99,8 +100,6 @@ class SerialController:
             # Show sent commands in serial monitor if exists
             if getattr(self.app, "serial_monitor", None):
                 self.app.serial_monitor.add_text(f">>> {group}")
-
-            self.read()  # Read device response and update last_message
 
     # -------------------- Reading --------------------
     def read(self, timeout=60):
@@ -147,7 +146,10 @@ class SerialController:
                     return self.last_message
             time.sleep(0.01)  # Avoid blocking CPU too much
 
-        print("⚠️ Timeout: incomplete message from device")
+        if not buffer:
+            self.app.show_message("⚠️ No message received!")
+        else:
+            self.app.show_message("⚠️ Timeout: incomplete message from device")
         return self.last_message
 
     # -------------------- Update values --------------------
@@ -160,7 +162,7 @@ class SerialController:
         """
         response = self.last_message
         if print_flag:
-            print("Parsing response:\n", response)
+            self.app.show_message("Parsing response:\n", response)
 
         # Loop through all coils and parameters to extract values
         for coil_id in range(self.app.in_columns):
@@ -203,5 +205,6 @@ class SerialController:
 
         # Send all changed parameters to the device
         self.write(";".join(parts) + ";")
+        self.read()
         input_sync(self.app)
         self.app.show_message("✅ Parameters sent and synchronized!")

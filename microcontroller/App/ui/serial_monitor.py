@@ -47,7 +47,7 @@ class SerialMonitor:
         input_frame.grid_columnconfigure(1, weight=1)  # Entry expands horizontally
 
         # Load icon for the clear button
-        clear_image = ctk.CTkImage(Image.open("Images/clear.png"), size=(20, 20))
+        clear_image = ctk.CTkImage(Image.open(app.resource_path("Images/clear.png")), size=(20, 20))
 
         clear_button = ctk.CTkButton(
             input_frame,
@@ -75,7 +75,7 @@ class SerialMonitor:
         self.input_entry.bind("<KP_Enter>", self.send_message)
 
         # Load icon for the send button
-        send_image = ctk.CTkImage(Image.open("Images/send.png"), size=(18, 18))
+        send_image = ctk.CTkImage(Image.open(app.resource_path("Images/send.png")), size=(18, 18))
 
         # Send button next to the entry field
         send_button = ctk.CTkButton(
@@ -119,6 +119,7 @@ class SerialMonitor:
         if text == "":
             return  # Ignore empty input
         self.app.controller.write(text)  # Send message to the controller
+        self.app.controller.read()
         answer = self.app.controller.last_message  # Optional: retrieve last response
         self.input_entry.delete(0, "end")  # Clear the input entry
 

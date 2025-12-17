@@ -48,7 +48,7 @@ def create_top_frame(app):
             app.show_message("All parameters have been reset!")  # Notify user of successful reset
 
         # Load STOP button image and recolor it to white with alpha transparency
-        original_img = Image.open("Images/stop.png").convert("RGBA")
+        original_img = Image.open(app.resource_path("Images/stop.png")).convert("RGBA")
         r, g, b, alpha = original_img.split()
         white_img = Image.new("RGBA", original_img.size, (255, 255, 255, 255))
         white_img.putalpha(alpha)
@@ -75,8 +75,8 @@ def create_top_frame(app):
 
         # Load moon icon for light mode and sun icon for dark mode
         moon_image = ctk.CTkImage(
-            light_image=Image.open("Images/moon.png"),
-            dark_image=Image.open("Images/sun.png"),
+            light_image=Image.open(app.resource_path("Images/moon.png")),
+            dark_image=Image.open(app.resource_path("Images/sun.png")),
             size=(30, 30)
         )
 

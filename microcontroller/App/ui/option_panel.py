@@ -24,7 +24,7 @@ def create_option_panel(app):
     title_label.pack(padx=10, pady=5)
 
     # Load icon for the top values reset button
-    app.top_reset_icon = ctk.CTkImage(Image.open("Images/max.png"), size=(25, 25))
+    app.top_reset_icon = ctk.CTkImage(Image.open(app.resource_path("Images/max.png")), size=(25, 25))
 
     # -------------------------------------------- Top Values Reset -------------------------------------------
     # Function to reset all top values to their original defaults
@@ -61,7 +61,7 @@ def create_option_panel(app):
     reset_top_button.pack(padx=10, pady=10)
 
     # -------------------------------------------- Continuous Send Button -------------------------------------------
-    sync_icon_image = Image.open("Images/sync.png")  # Load icon for continuous send
+    sync_icon_image = Image.open(app.resource_path("Images/sync.png"))  # Load icon for continuous send
     app.continuous_send_active = False  # Track state of continuous send
 
     # Button for continuous sending of app values to the controller
@@ -134,7 +134,7 @@ def create_option_panel(app):
     # Function to create the serial monitor button
     def create_serial_monitor_button():
         """Adds a button to open the Serial Monitor."""
-        monitor_image = ctk.CTkImage(Image.open("Images/monitor.png"), size=(30, 30))
+        monitor_image = ctk.CTkImage(Image.open(app.resource_path("Images/monitor.png")), size=(30, 30))
 
         serial_button = ctk.CTkButton(
             option_frame,

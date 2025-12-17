@@ -12,7 +12,7 @@ def create_bottom_bar(app):
     app.text_window.pack(fill="x", side="left", padx=10)
 
     # Send button
-    send_image = ctk.CTkImage(Image.open("Images/send.png"), size=(25, 25))
+    send_image = ctk.CTkImage(Image.open(app.resource_path("Images/send.png")), size=(25, 25))
 
     send_button = ctk.CTkButton(
         app.bottom_container,

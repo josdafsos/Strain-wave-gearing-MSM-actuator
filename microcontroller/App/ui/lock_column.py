@@ -37,8 +37,8 @@ def create_lock_column(app):
     title.grid(row=0, column=0, pady=(10, 5))
 
     # Load images once and store them in the app so they are not garbage collected
-    app.locked_image = ctk.CTkImage(Image.open("Images/locked.png"), size=(25, 25))
-    app.unlocked_image = ctk.CTkImage(Image.open("Images/unlocked.png"), size=(25, 25))
+    app.locked_image = ctk.CTkImage(Image.open(app.resource_path("Images/locked.png")), size=(25, 25))
+    app.unlocked_image = ctk.CTkImage(Image.open(app.resource_path("Images/unlocked.png")), size=(25, 25))
 
     # Track lock states (True = locked)
     app.lock_states = [True] * len(app.in_parameters)

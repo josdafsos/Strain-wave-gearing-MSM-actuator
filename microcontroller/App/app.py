@@ -6,9 +6,21 @@ import platform
 from logic.serial_controller import SerialController
 from config import base_data
 import ui
+import threading
+
 
 
 class App(ctk.CTk):
+    # To find the Images in the .exe file
+    @staticmethod
+    def resource_path(relative_path):
+        import sys
+        from pathlib import Path
+
+        if hasattr(sys, "_MEIPASS"):
+            return Path(sys._MEIPASS) / relative_path
+        return Path(__file__).resolve().parent / relative_path
+
     """
     Main application window for microcontroller control.
 
@@ -63,7 +75,7 @@ class App(ctk.CTk):
         ui.create_bottom_bar(self)  # Bottom bar with send button + message display
 
         # Attempt to connect to device at default port
-        self.controller.connect_to_device("/dev/ttyUSB0")
+        threading.Thread(target=self.controller.connect_to_device, daemon=True).start()
 
     # -----------------------------
     # MESSAGE HANDLING
