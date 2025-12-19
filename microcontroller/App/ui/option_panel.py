@@ -178,7 +178,7 @@ def create_option_panel(app):
 
         serial_button = ctk.CTkButton(
             option_frame,
-            text="Reset to\ncontroller",
+            text="Reset to\nController",
             text_color="black",
             font=("Arial", 14, "bold"),
             image=board_image,
