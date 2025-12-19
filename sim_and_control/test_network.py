@@ -28,7 +28,7 @@ def make_env(action_discretization_cnt=None, is_sign_inversed=False, enable_filt
     global velocity_setpoint, external_force
     return msm_model.MSM_Environment(setpoint_limits=velocity_setpoint,
                                      force_limits=external_force,
-                                     simulation_time=0.06,  # 0.06
+                                     simulation_time=0.5,  # 0.06
                                      action_discretization_cnt=action_discretization_cnt,  # for discrete action space
                                      enable_action_filtering=enable_filtering,  # useful for discrete action space
                                      inverse_sign_on_negative_ref=is_sign_inversed,
@@ -40,9 +40,11 @@ def run_sim(model, predict_func, model_params, render_environment, enable_plots)
 
 
     if model_params["type"] == "dqn":
-        env = make_env(action_discretization_cnt=20, is_sign_inversed=True, enable_filtering=False)  # TODO for pure agent comparison filtering was disabled
+        env = make_env(action_discretization_cnt=20, is_sign_inversed=True, enable_filtering=True)  # TODO for pure agent comparison filtering was disabled
+    elif model_params["type"] == "ppo":
+        env = make_env(is_sign_inversed=True, enable_filtering=False)
     else:
-        env = make_env()
+        env = make_env(is_sign_inversed=False, enable_filtering=False)
     obs, _ = env.reset()
     result = {}
 
@@ -59,7 +61,7 @@ def run_sim(model, predict_func, model_params, render_environment, enable_plots)
     action = 0
     old_action = 0
     if render_environment:
-        viewer = mujoco_viewer.MujocoViewer(env.environment.model, env.environment.data)
+        viewer = mujoco_viewer.MujocoViewer(env.environment.model, env.environment.data_description)
         viewer.cam.azimuth = 180
         viewer.cam.distance = 0.005
     while True:  # viewer.is_alive:
@@ -119,11 +121,11 @@ def run_sim(model, predict_func, model_params, render_environment, enable_plots)
     result["time"] = env.environment.simulation_data["time"]
     rack_pos = env.environment.simulation_data["rack_pos"]
     desired_position = desired_position[:len(rack_pos)]
-    #steady_rack_pos = rack_pos[1000:]
-    #steady_desired_position = desired_position[1000:]
+    steady_rack_pos = rack_pos[1000:]
+    steady_desired_position = desired_position[1000:]
 
-    #steady_position_control_error = np.sum( ((steady_desired_position - steady_rack_pos) * 1000) ** 2) / len(steady_rack_pos)
-    #print(f"Steady RMSE for {label} = {np.sqrt(steady_position_control_error)} ")
+    steady_position_control_error = np.sum( ((steady_desired_position - steady_rack_pos) * 1000) ** 2) / len(steady_rack_pos)
+    print(f"Steady RMSE for {label} = {np.sqrt(steady_position_control_error)} ")
 
     if enable_plots:
         env.environment.plot_rack_instant_velocity()
@@ -134,7 +136,6 @@ def run_sim(model, predict_func, model_params, render_environment, enable_plots)
 
 
     return env, result
-
 
 def run_neat(model_params, render_environment=True, enable_plots=False):
     print("running neat")
@@ -213,7 +214,7 @@ def plot_rmse_plots(networks):
         for idx, network in enumerate(networks):
             plot_request = plot_request_list[i]
 
-            data_mat = np.array(network[utils.plot_info_dict[plot_request]["data"]])
+            data_mat = np.array(network[utils.plot_info_dict[plot_request]["data_description"]])
             x_data = data_mat[:, 0]
             y_data = data_mat[:, 1]
 
@@ -240,8 +241,8 @@ def plot_positions(netwrosk):
     legend_fontsize = 22  # 26
     tick_fontsize = 24  # 28
 
-    # network[utils.plot_info_dict[plot_request]["data"]]
-    labels = ["DQN + PID", "Cascade PID", "Re-trained DQN + PID"]
+    # network[utils.plot_info_dict[plot_request]["data_description"]]
+    labels = ["P + PPO", "Cascade PID", "P + DQN"]
     plt.figure(figsize=(8, 4))
     for idx, network in enumerate(networks):
         time_vec = network["environment"].environment.simulation_data["time"]
@@ -284,7 +285,7 @@ def plot_networks_data(networks, plots=[]):
         plt.figure(figsize=(8, 4))
         for network in networks:
             #mse_mat = np.array(network["steady velocity rmse"])
-            data_mat = np.array(network[utils.plot_info_dict[plot_request]["data"]])
+            data_mat = np.array(network[utils.plot_info_dict[plot_request]["data_description"]])
             x_data = data_mat[:, 0]
             y_data = data_mat[:, 1]
             # Plot results
@@ -474,12 +475,12 @@ if __name__ == '__main__':
 
     # --- manual settings ---
     load_existing_data = False
-    data_to_load = 'ppo_sac_dqn_filtered_pid_80_steps.pickle'
-    save_data = False  # if True data obtained during the nun will be saved
+    data_to_load = 'ppo_sac_dqn_non-filtered_pid_150_steps_6_forces.pickle'
+    save_data = False  # if True data_description obtained during the nun will be saved
     is_position_control = False  # toggles position / velocity control mods, global variable
-    plot_comparisons = True  # enables plotting of combined agents data selected at the bottom of the script
+    plot_comparisons = False  # enables plotting of combined agents data_description selected at the bottom of the script
     render_environment = False  # enables visualization of the simulation
-    enable_individual_plots = False  # separate individual plots will be shown after each experiment for every agent
+    enable_individual_plots = True  # separate individual plots will be shown after each experiment for every agent
 
     # --- agents ---
     # network types: # "neat" "sac" "ppo" "pid"
@@ -487,8 +488,8 @@ if __name__ == '__main__':
     position_controllers_list = []
     # networks.append({"type": "neat", "file": "neatsave_4khz_70obs_checkpoint-482_fitness_0_12351", "postfix": "4khz"})  # NOTE: USED in publication
     # test 3 SAC looks better than test 8
-    networks.append({"type": "sac", "file": "sac_32_obs_4000_Hz_freq_6000000_network_06_19_25_reward16_4_experiment_3", })  # NOTE: USED IN PUBLICATION
-    networks.append({"type": "ppo", "file": "ppo_32_obs_4000_Hz_freq_280000000_network_06_23_25", })  # NOTE: USED IN PUBLICATION
+    # networks.append({"type": "sac", "file": "sac_32_obs_4000_Hz_freq_6000000_network_06_19_25_reward16_4_experiment_3", })  # NOTE: USED IN PUBLICATION
+    networks.append({"type": "ppo", "file": "ppo_32_obs_4000_Hz_freq_280000000_network_06_23_25", "id": 5})  # NOTE: USED IN PUBLICATION
 
     # NOTE this could be used in the original paper instead of Run 17 DQN
     # networks.append(
@@ -513,8 +514,8 @@ if __name__ == '__main__':
     #      "postfix": "zero vel 1e6, 3x256 layers", "id": 4})
 
     # Note this one is used in the publication as "constant force trained" use it for comparison
-    networks.append(
-        {"type": "dqn", "file": "run_20_best_dqn_32_obs_4000_Hz_freq_167000000_steps", "id": 4})
+    # networks.append(
+    #     {"type": "dqn", "file": "run_20_best_dqn_32_obs_4000_Hz_freq_167000000_steps", "id": 4})
     # "postfix": "correct zero vel 1e7, 3x256 layers",  NOTE: USED IN PUBLICATION
 
     # pid pid, "pid" = 1
@@ -526,21 +527,27 @@ if __name__ == '__main__':
     # run 20 zero dqn pid
     position_controllers_list.append({"type": "position pid", "file": "", "id": 4, "kp": 100, "ki": 0, "kd": 0})
 
+    # ppo pid
+    position_controllers_list.append({"type": "position pid", "file": "", "id": 5, "kp": 90, "ki": 0, "kd": 0})
+
     # --- reference velocity and position settings ---
-    # velocity_range = 0.005  # (0.005, 0.010)
-    velocity_range = np.linspace(0.001, 0.011, 3)
-    # force_range = -2.0
-    force_range = np.linspace(-1, -5, 3)
+    velocity_range = 0.005  # (0.005, 0.010)
+    # velocity_range = np.linspace(0.001, 0.011, 3)
+    force_range = -2.0
+    # force_range = np.linspace(-1, -5, 3)
     position_trajectory = []  # global variable
     x = np.linspace(0, 2*np.pi, 8000)
     y = (np.sin(x) + 1) / 1000
-    position_trajectory = [0.001, 0.001]  # y  #
-    # --- end of settings ---
+    position_trajectory = y  # [0.001, 0.001]  #
+
+
+    # ---------- end of settings --------------
+    # ------------------------------------------------------------------------------------------------------------------------
 
     current_position_controller: dict | None = None  # global variable
     velocity_setpoint = None
     external_force = force_range
-    data_folder = 'saved data'  # folder to which processed data is saved
+    data_folder = 'saved data_description'  # folder to which processed data_description is saved
     preprocess_netwroks(networks)
 
     # 'sine_position_dqn_vs_pid.pickle'
@@ -550,7 +557,7 @@ if __name__ == '__main__':
     # '1mm_step_dqn_vs_pid_2_seconds.pickle'
 
     if load_existing_data:
-        print("Loading existing data from ", data_to_load)
+        print("Loading existing data_description from ", data_to_load)
         with open(os.path.join(data_folder, data_to_load), 'rb') as handle:
             networks = pickle.load(handle)
     else:
@@ -560,8 +567,8 @@ if __name__ == '__main__':
                 pickle.dump(networks, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     if plot_comparisons:
-        plot_rmse_plots(networks)
-        # plot_positions(networks)
+        # plot_rmse_plots(networks)
+        plot_positions(networks)
         # plot_networks_data(networks, plots=[#"steady velocity rmse",
         #                                     #"transition velocity rmse",
         #                                     "steady velocity rmse average force",
@@ -570,3 +577,4 @@ if __name__ == '__main__':
         #                                     "max transition velocity rmse"])
         # plot_velocity_tracking(processed_environments)
 
+    plt.show()  # this line prevents all matplotlib plots from being automatically closed at the end of this script

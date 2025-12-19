@@ -1,7 +1,10 @@
-function quit_on_halt = save_sim_result(out, full_path, quit_on_halt, useful_load, feedback_threshold, next_vec_fraction)
+function quit_on_halt = save_sim_result(out, ...
+    full_path, quit_on_halt, useful_load, set_zero_halt_velocity, ...
+    feedback_threshold, next_vec_fraction)
 
-        if nargin < 6; next_vec_fraction = 0; end
-        if nargin < 5; feedback_threshold = 0; end
+        if nargin < 7; next_vec_fraction = 0; end
+        if nargin < 6; feedback_threshold = 0; end
+        if nargin < 5; set_zero_halt_velocity = true; end  % position and velocity values will be set to zero if Halt state occurs
 
         % getting simulation parameters from the base workspace
         tb_type = evalin('base','tb_type');
@@ -26,8 +29,14 @@ function quit_on_halt = save_sim_result(out, full_path, quit_on_halt, useful_loa
                 if ~continue_iteration_on_halt; quit_on_halt = true; end
             elseif max(out.sim_stop_result.Data(1) == SIM_HALT)  % note: the check for continue_iteration_on_halt condition is at the end of the cycle
                 disp('simulated actuator is halted')
-                out.sim_results.Data(:,1) = zeros(length(out.sim_results.Data(:,1)), 1); % position
-                out.sim_results.Data(:,2) = zeros(length(out.sim_results.Data(:,2)), 1); % velocity
+                % NOTE previously the following two lines were not commented
+                if set_zero_halt_velocity
+                    disp('Halt is trigger, setting velocity to zero on halt')
+                    out.sim_results.Data(:,1) = zeros(length(out.sim_results.Data(:,1)), 1); % position
+                    out.sim_results.Data(:,2) = zeros(length(out.sim_results.Data(:,2)), 1); % velocity
+                else
+                    disp('Halt is trigger. Velocity is not set to zero due to the settings')
+                end
                 if ~continue_iteration_on_halt; quit_on_halt = true; end
             end
             % There is also stop on max position reached, however, it is

@@ -1,0 +1,292 @@
+{
+  "folder": "measurements_031125",
+  "0": {
+    "unit": "V"
+  },
+    "1": {
+    "unit": "mm/s",
+    "scaler": "-10",
+    "time_offset": "0.0000154"
+  },
+    "2": {
+    "unit": "mm",
+    "scaler": "-0.2",
+    "time_offset": "0.0"
+  },
+  "3": {
+    "unit": "V"
+  },
+    "4": {
+    "unit": "mm/s",
+    "scaler": "20",
+    "time_offset": "0.0000161"
+  },
+    "5": {
+    "unit": "mm",
+    "scaler": "0.2"
+  },
+  "6": {
+    "unit": "V"
+  },
+      "7": {
+    "unit": "mm/s",
+    "scaler": "20",
+    "time_offset": "0.0000161"
+  },
+    "8": {
+    "unit": "mm",
+    "scaler": "0.2"
+  },
+  "9": {
+    "unit": "V"
+  },
+    "11": {
+    "unit": "mm",
+    "scaler": "0.2"
+  },
+    "10": {
+    "unit": "mm/s",
+    "scaler": "20",
+    "time_offset": "0.0000161"
+  },
+  "12": {
+    "unit": "V"
+  },
+    "14": {
+    "unit": "mm",
+    "scaler": "0.2"
+  },
+    "13": {
+    "unit": "mm/s",
+    "scaler": "20",
+    "time_offset": "0.0000161"
+  },
+  "15": {
+    "unit": "V"
+  },
+    "17": {
+    "unit": "mm",
+    "scaler": "0.2"
+  },
+    "16": {
+    "unit": "mm/s",
+    "scaler": "20",
+    "time_offset": "0.0000161"
+  },
+  "18": {
+    "unit": "V"
+  },
+    "19": {
+    "unit": "mm/s",
+    "scaler": "20",
+    "time_offset": "0.0000161"
+  },
+    "20": {
+    "unit": "mm",
+    "scaler": "0.2"
+  },
+    "21": {
+    "unit": "V"
+  },
+    "22": {
+    "unit": "mm/s",
+    "scaler": "10",
+    "time_offset": "0.0000154"
+  },
+    "23": {
+    "unit": "mm",
+    "scaler": "0.05"
+  },
+      "24": {
+    "unit": "V"
+  },
+    "25": {
+    "unit": "mm/s",
+    "scaler": "10",
+    "time_offset": "0.0000154"
+  },
+    "26": {
+    "unit": "mm",
+    "scaler": "0.05"
+  },
+      "27": {
+    "unit": "V"
+  },
+    "28": {
+    "unit": "mm/s",
+    "scaler": "10",
+    "time_offset": "0.0000154"
+  },
+    "29": {
+    "unit": "mm",
+    "scaler": "0.05"
+  },
+      "30": {
+    "unit": "V"
+  },
+    "31": {
+    "unit": "mm/s",
+    "scaler": "10",
+    "time_offset": "0.0000154"
+  },
+    "32": {
+    "unit": "mm",
+    "scaler": "0.05"
+  },
+  "33": {
+    "unit": "V"
+  },
+    "34": {
+    "unit": "mm/s",
+    "scaler": "10",
+    "time_offset": "0.0000154"
+  },
+    "35": {
+    "unit": "mm",
+    "scaler": "0.05"
+  },
+  "36": {
+    "unit": "V"
+  },
+    "37": {
+    "unit": "mm/s",
+    "scaler": "20",
+    "time_offset": "0.0000161"
+  },
+    "38": {
+    "unit": "mm",
+    "scaler": "0.2"
+  },
+    "39": {
+    "unit": "V"
+  },
+    "40": {
+    "unit": "mm/s",
+    "scaler": "20",
+    "time_offset": "0.0000161"
+  },
+    "41": {
+    "unit": "mm",
+    "scaler": "0.2"
+  },
+    "42": {
+    "unit": "V"
+  },
+    "43": {
+    "unit": "mm/s",
+    "scaler": "20",
+    "time_offset": "0.0000161"
+  },
+    "44": {
+    "unit": "mm",
+    "scaler": "0.2"
+  },
+    "45": {
+    "unit": "V"
+  },
+    "46": {
+    "unit": "mm/s",
+    "scaler": "20",
+    "time_offset": "0.0000161"
+  },
+    "47": {
+    "unit": "mm",
+    "scaler": "0.2"
+  },
+    "48": {
+    "unit": "V"
+  },
+    "49": {
+    "unit": "mm/s",
+    "scaler": "20",
+    "time_offset": "0.0000161"
+  },
+    "50": {
+    "unit": "mm",
+    "scaler": "0.2"
+  },
+    "51": {
+    "unit": "V"
+  },
+    "52": {
+    "unit": "mm/s",
+    "scaler": "20",
+    "time_offset": "0.0000161"
+  },
+    "53": {
+    "unit": "mm",
+    "scaler": "0.2"
+  },
+    "54": {
+    "unit": "V"
+  },
+    "55": {
+    "unit": "mm/s",
+    "scaler": "-20",
+    "time_offset": "0.0000161"
+  },
+    "56": {
+    "unit": "mm",
+    "scaler": "-1"
+  },
+  "57": {
+    "unit": "V"
+  },
+    "58": {
+    "unit": "mm/s",
+    "scaler": "20",
+    "time_offset": "0.0000161"
+  },
+    "59": {
+    "unit": "mm",
+    "scaler": "1"
+  },
+    "60": {
+    "unit": "V"
+  },
+    "61": {
+    "unit": "mm/s",
+    "scaler": "20",
+    "time_offset": "0.0000161"
+  },
+    "62": {
+    "unit": "mm",
+    "scaler": "0.5"
+  },
+  "63": {
+    "unit": "V"
+  },
+    "64": {
+    "unit": "mm/s",
+    "scaler": "20",
+    "time_offset": "0.0000161"
+  },
+    "65": {
+    "unit": "mm",
+    "scaler": "0.5"
+  },
+  "66": {
+    "unit": "V"
+  },
+    "67": {
+    "unit": "mm/s",
+    "scaler": "20",
+    "time_offset": "0.0000161"
+  },
+    "68": {
+    "unit": "mm",
+    "scaler": "0.5"
+  },
+  "69": {
+    "unit": "V"
+  },
+    "70": {
+    "unit": "mm/s",
+    "scaler": "20",
+    "time_offset": "0.0000161"
+  },
+    "71": {
+    "unit": "mm",
+    "scaler": "1"
+  }
+}

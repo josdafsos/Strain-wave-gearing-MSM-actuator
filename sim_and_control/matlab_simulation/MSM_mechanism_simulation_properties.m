@@ -21,8 +21,8 @@
 
 MAX_TIME_STEP = 5e-6; % 3e-7  stable
 MIN_STEP_TIME = 0.01*MAX_TIME_STEP; % not verified
-filter_time_constant = 5e-7; % working value: 1e-8; % needed for simulink-ps convertors. If smaller unpredicatble behavior may occur
-solver_relative_tolerance = 1e-4; % default was 1e-3;
+filter_time_constant = 5e-9; % working value: 1e-8; all the sims were run at  5e-7 % needed for simulink-ps convertors. If smaller unpredicatble behavior may occur
+solver_relative_tolerance = 1e-5; % default was 1e-3; all the sims were run at 1e-4;
 
 % ---- Control parametrs ----
 
@@ -53,7 +53,7 @@ if ~exist('tooth_quality','var') % "low" "high" defines accuracy of the mesh
     tooth_quality = "low";
 end
 if ~exist('SIMULATION_TIME','var')
-    SIMULATION_TIME = 0.08; % seconds  % usually 0.04
+    SIMULATION_TIME = 0.06; % seconds  % usually 0.04 or 0.08
 end
 if ~exist('disck_diameter','var')
     disk_diameter = 35e-3; % m, central diameter of the teeth disk. For rotatary actuators only
@@ -62,6 +62,8 @@ end
 if ~exist('simplified_visualization','var') % Note: if the value is <true> the simulation will look broken, but it is actually fine
     simplified_visualization = true; % used to speed up the computations significantly if set to true in expense of visualization
 end
+
+if ~exist('rack_initial_offset','var'); rack_initial_offset = 0.0; end  % m or Rads. Defines the offset from the exact tooth match in the beginning
 
 % other adjustable properties that are not intended for manual adjustment
 if ~exist('max_teeth_passed','var'); max_teeth_passed = 5; end  % simulation will stop after this number of teeth will be passed
@@ -131,8 +133,8 @@ end
 % --- MSM crystal paratemers ---
 % The msm full length is considered to be at fully extended position.
 if pitch_type == "prototype"
-    msm_length = 10e-3; % meters
-    msm_width = 2.5e-3;   % meters
+    msm_length = 20e-3; % meters
+    msm_width = 2.3e-3;   % meters. The actual width of the sticks is 2.5 mm
     msm_height = 1e-3;  % meters
 else
     if ~exist('msm_length','var'); msm_length = 10e-3; end % meters
@@ -272,9 +274,17 @@ elseif tb_type == 1
     spting_natural_length = 20e-3 + spring_y_offset; % m 5e-3 + spring_y_offset
     spring_stiffness = 3.40e+2; % N/m old did not return fully: 1.70e+2
     if pitch_type == "prototype"  % TODO insert the real values
-        spring_y_offset = 2e-3; % meters, 
-        spting_natural_length = 6.35e-3 + spring_y_offset; % m
-        spring_stiffness = 650; % N/m spring E00630090250M
+        % the springs have identical lengths and pre-tension, but different
+        % stiffness
+        spring_y_offset = 1e-3; % meters, 
+        
+        % ---- stiff spring ----
+        % spring_stiffness = 650; % N/m spring E00630090250M
+        % spting_natural_length = ???? + spring_y_offset; % m
+
+        % ---- soft spring ---- seems to work better
+        spring_stiffness = 290; % N/m spring E00630080250S
+        spting_natural_length = 13e-3;  % mm TODO NOTE! for some reason spring does not function as intended, this value was found by guessing from simulations
     end
 end
 
@@ -310,7 +320,7 @@ disk_diameter = disk_teeth_count * tooth_pitch / pi;
 if ~exist('zero_friction','var'); zero_friction = false; end  % [-CR; +CR] range, defines the disengagement timing for the last tooth, positive value leads to earlier disengagement
 
 if zero_friction
-    rack_coulumb_friction = 1e-10; % N, based on approximation with plastic and bronze parts for prototype
+    rack_coulumb_friction = 1e-10; % N, Seems to match experimental data; originally value is based on approximation with plastic and bronze parts for prototype
     rotational_rack_coulumb_friction = 1e-10;  % Nm
     % TODO add proper values for contact forces, right now there is some
     % default non-zero friction values
@@ -320,13 +330,13 @@ if zero_friction
     steel_steel_contact_coeff_kinetic_friction = 1e-10; % same source
     rotational_contact_coeff_kinetic_friction = 1e-10;
 else
-    rack_coulumb_friction = 0.01; % N, based on approximation with plastic and bronze parts for prototype
+    rack_coulumb_friction = 0.05; % N, based on approximation with plastic and bronze parts for prototype
     rotational_rack_coulumb_friction = rack_coulumb_friction * disk_diameter;  % Nm
     % TODO add proper values for contact forces, right now there is some
     % default non-zero friction values
     % contact friction:
     rack_contact_coeff_static_friction = 0.16; % source https://mechguru.com/machine-design/typical-coefficient-of-friction-values-for-common-materials/
-    bronze_steel_kinetic_friction = 0.16; % source https://mechguru.com/machine-design/typical-coefficient-of-friction-values-for-common-materials/
+    bronze_steel_kinetic_friction = 0.16; % 0.16 from source https://mechguru.com/machine-design/typical-coefficient-of-friction-values-for-common-materials/
     steel_steel_contact_coeff_kinetic_friction = 0.23; % same source
     rotational_contact_coeff_kinetic_friction = bronze_steel_kinetic_friction * disk_diameter / (2*pi);
 end
@@ -392,7 +402,7 @@ contact_transition_region_width = 1e-4; % meters; % 1e-4 - precise but quite slo
 % value of 1e-3 is close to the limit, it entroduces a slight error, but
 % increases computation by over 20%
 
-contact_damping = 1e+4; % N/(m/s); 1e+3; default value (all simulation results were obtrained with it)
+contact_damping = 1e+7; % N/(m/s); 1e+7 seems to match experiment; default value (all simulation results were obtrained with 1e+4)
 
 % --- Other ---
 if ~exist('initial_spike_force','var'); initial_spike_force = 0; end % force that is initially applied to the rack and then decays raåpidly (for extra randomness in intial rack velocity)
@@ -400,8 +410,8 @@ force_control_coeff = 1.0; % to reduce MFIS value
 
 if motion_type == "linear"
     if simplified_visualization
-        rack_initial_position = 10 * tooth_pitch;  % the value must be in phase with tooth plates, meters
-        if tb_type == 2; rack_initial_position = 60 * tooth_pitch; end
+        rack_initial_position = 10 * tooth_pitch + rack_initial_offset;  % the value must be in phase with tooth plates, meters
+        if tb_type == 2; rack_initial_position = 60 * tooth_pitch + rack_initial_offset; end
     else
         rack_initial_position = 85 * tooth_pitch;  % the value must be in phase with tooth plates, meters
     end
@@ -409,14 +419,14 @@ if motion_type == "linear"
     HALT_VELOCITY = 2e-4; % Value used for performance curves: 1e-3; % m/s; if the average rack velocity is lower than this value, the actuator is considered halted
     MAX_POSITION = max_teeth_passed * tooth_pitch; % m, before was 7; push-spring 8 plates - 10 teeth to end, push-push - 8 plates (taking one less than max)
 elseif motion_type == "rotary"
-    rack_initial_position = tooth_plates_cnt / 2 * angle_single_tooth_step; % Rad
+    rack_initial_position = tooth_plates_cnt / 2 * angle_single_tooth_step + rack_initial_offset; % Rad
     % there is a mess with feedback based on purely initial position, TODO should be reworked
     % This mess might be caused by the rounding of the teeth on the gear, but for now:
     if pitch_type == "force_optimal"  % for now the constant multiplier is basically tooth_plate_cnt/2, but depending on the pitch value, it could be different
         if tooth_plates_cnt == 4
-            rack_initial_position = rack_initial_position + 2*angle_single_tooth_step; % TODO does it work with non-visually simplified?
+            rack_initial_position = rack_initial_position + 2*angle_single_tooth_step + rack_initial_offset; % TODO does it work with non-visually simplified?
         elseif tooth_plates_cnt == 6
-            rack_initial_position = rack_initial_position + 3*angle_single_tooth_step;  
+            rack_initial_position = rack_initial_position + 3*angle_single_tooth_step + rack_initial_offset;  
         elseif tooth_plates_cnt == 8
             rack_initial_position = rack_initial_position + 4*angle_single_tooth_step;
         end

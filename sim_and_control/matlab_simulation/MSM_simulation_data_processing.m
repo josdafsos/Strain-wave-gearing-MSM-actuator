@@ -1,6 +1,7 @@
 % processing collection of the MSM simulation data, data visualization
 % get dictionary back: dict = getfield(load(filename), "sim_results_dictionary")
 clear
+close all
 % --- Notes ---
 % big pitches:
 % 4 tooth plates 4.5 N load is maximum movable load, hold force up to 12 N
@@ -15,14 +16,15 @@ clear
 % push_push_rotation: 4 plates: less than 0.39 Nm - holding torque
 
 sim_data.sim_type = ["push_spring"]; % "push_spring" "push_push_linear" "push_spring_rotation" "push_push_rotation"
-sim_data.pitch_type = ["prototype"]; % "small" or "big" or "force_optimal" or "prototype"
+sim_data.pitch_type = ["prototype"]; % "small"; "big" or "force_optimal" or "prototype"
 sim_data.tb_type = [1]; % 1 2
 sim_data.tooth_plates_cnt = [4]; %[4 6 8]; % 4 6 8
 % the data folder of interest can be selected manufally if "analysis_type" variable is defined
 % analysis_type = "sensetivity_threshold_fraction"; % "performance" "sensetivity_force_threshold" "sensetivity_threshold_fraction"
-plots_to_draw = ["force_frequency"]; % ["force_velocity" "force_frequency"]; % optins: "3d_feedback_fraction_vel" "3d_force_vel_feedback" 
+plots_to_draw = ["force_velocity" "force_frequency"]; % ["force_velocity" "force_frequency"]; % optins: "3d_feedback_fraction_vel" "3d_force_vel_feedback" 
 % options [2]:  "3d_feedback_fraction_average_abs_acceleration" "3d_force_average_abs_acceleration"
 % options [3]:  "force_velocity", "force_frequency", "power_force", "power_velocity", "average_abs_acceleration"
+% options [4]:  "force_freq_vel"
 b_print_max_values = true;  % ture/false; prints abs max values of the measured parameters
 
 if ~exist('analysis_type','var')
@@ -80,6 +82,7 @@ if sum(ismember("3d_force_vel_feedback", plots_to_draw)) > 0.5; plot_3d_force_ve
 if sum(ismember("3d_force_average_abs_acceleration", plots_to_draw)) > 0.5; plot_3d_force_average_abs_acceleration(data_collection, sim_data, name_data, visual_params); end
 if sum(ismember("3d_feedback_fraction_vel", plots_to_draw)) > 0.5; plot_3d_feedback_fraction_vel(data_collection, sim_data, name_data, visual_params); end
 if sum(ismember("3d_feedback_fraction_average_abs_acceleration", plots_to_draw)) > 0.5; plot_3d_feedback_fraction_average_abs_acceleration(data_collection, sim_data, name_data, visual_params); end
+if sum(ismember("force_freq_vel", plots_to_draw)) > 0.5; plot_force_freq_vel(data_collection, sim_data, name_data, visual_params); end
 end
 
 
@@ -285,6 +288,66 @@ function plot_force_velocity(data_collection, sim_data, name_data, visual_params
     lgd = legend(legend_titles);
     fontsize(lgd,visual_params.legend_font_size,'points')
     grid on;
+    hold off
+end
+function plot_force_freq_vel(data_collection, sim_data, name_data, visual_params)
+    figure('Name', strcat('Force/velocity plot', name_data.plot_name_extra), 'Color', [1 1 1])
+    ax1 = axes;
+    title(strcat('Force/velocity ', name_data.plot_name_extra), 'FontSize', visual_params.title_font_size)
+    legend_titles = {};
+    vel_vec = [];
+    freq_vec = [];
+
+    for data_sample = data_collection
+                if sim_data.motion_type == "linear"
+                    cur_vel = cell2mat(data_sample{1}("velocity_vec"))*1e+3;
+                    cur_freq = cell2mat(data_sample{1}("frequency_vec"));
+                    vel_vec = [vel_vec cell2mat(data_sample{1}("velocity_vec"))];
+                    freq_vec = [freq_vec cur_freq];
+                    plot(ax1, cur_vel, cell2mat(data_sample{1}("load_vec")), '-x', 'LineWidth', 3)  
+                    % semilogx(abs(cell2mat(data_sample{1}("velocity_vec"))*1e+3) + 1e-5, cell2mat(data_sample{1}("load_vec")), '-x', 'LineWidth', 3)
+                else
+                    plot(abs(cell2mat(data_sample{1}("velocity_vec"))), cell2mat(data_sample{1}("load_vec")), '-x', 'LineWidth', 3)
+                end
+                legend_titles{end+1} = get_legend_title(sim_data, cell2mat(data_sample{1}("tooth_plates_cnt")), ...
+                   string(data_sample{1}("sim_type")), string(data_sample{1}("pitch_type")), string(data_sample{1}("tb_type")));
+                hold on;
+    end
+
+    
+
+    fontsize(gcf, visual_params.lables_font_size,"points"); 
+    xlim([1 inf]) % needed for the log plot to work correctly
+    xlabel(name_data.velocity_name_string) 
+    ylabel(name_data.load_name_string) % , 'FontSize', 12
+    lgd = legend(legend_titles);
+    fontsize(lgd,visual_params.legend_font_size,'points')
+    grid on;
+    
+    % Create a second axes on top
+    ax2 = axes('Position', ax1.Position,...
+               'XAxisLocation','top',...
+               'YAxisLocation','right',...
+               'Color','none',...
+                'YTick',[]); % transparent background
+    xlabel(ax2, 'x_2 (units B)')
+    x1_min = ax1.XLim(1);
+    x1_max = ax1.XLim(2);
+
+    % Set the limits and ticks for the second x-axis
+    a = max(freq_vec) / max(vel_vec) * 0.001
+    b = 0;
+    tick_step = 2;
+    ax2.XLim = a * ax1.XLim + b;
+    ax2.XTick = (a*x1_min + b):tick_step:(a*x1_max + b);
+
+    %ax2.FontName = 'Times New Roman';
+    ax2.FontSize = visual_params.lables_font_size;
+    %ax2.FontWeight = 'bold';
+    
+    addlistener(ax1, 'XLim', 'PostSet', @(src, evt) set(ax2, 'XLim', a*ax1.XLim + b, ...
+                                                    'XTick', a*ax1.XTick + b));
+
     hold off
 end
 function plot_power_velocity(data_collection, sim_data, name_data, visual_params)
