@@ -796,9 +796,9 @@ class MSM_Environment(gym.Env):
         self.environment.collect_velocity_setpoint(self.velocity_setpoint)  # duplicating self.velocity_setpoint_list
         observation = self._get_observation()
         dv = self.velocity_setpoint - self.environment.simulation_data["rack_vel"][-1]
-        reward = max(1 / (0.1 + abs(dv)) - 9.8, 0)  # reward will be zero if abs(dv) is greater than 0.002. Max rew/step 0.2
+        # reward = max(1 / (0.1 + abs(dv)) - 9.8, 0)  # reward will be zero if abs(dv) is greater than 0.002. Max rew/step 0.2
         # old rewards:
-        # reward = -(self.velocity_setpoint - self.environment.simulation_data["rack_vel"][-1]) ** 2
+        reward = -(self.velocity_setpoint - self.environment.simulation_data["rack_vel"][-1]) ** 2
         # reward = -( ((self.velocity_setpoint - self.environment.simulation_data["rack_vel"][-1]) * 1000) **2 )  # \
                  #* (0.1 + abs(float(action)) * 2)
 

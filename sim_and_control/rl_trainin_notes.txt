@@ -359,3 +359,25 @@ Training continued for 5e7 steps, learning rate = 1e-6, does not seem to learn a
     average reward of last 50 episodes: 0.25498274849917985, average reward of last 100 episodes: 0.33329191254748564
 Training continued for 5e7 steps, learning rate = 5e-5, does not learn anything
 Training continued for 1e8 steps, learning rate = 1e-7, does not seem to learn
+
+
+-------------------------
+Reward sensetivity test
+------------------------
+DQN agent, 3 layrs 256 neurons each, 10e-6 LR, 10e7 steps
+Reward ~ 1 / error:
+1.  max reward 28.507389281791458, average reward of last 50 episodes: 17.67750787282394, average reward of last 100 episodes: 17.133139490988448
+2. max reward 28.860231859433632, average reward of last 50 episodes: 15.916997662764954, average reward of last 100 episodes: 15.889250561489785
+3. max reward 29.257446477627468, average reward of last 50 episodes: 17.328533905007113, average reward of last 100 episodes: 17.235692995494013
+4. max reward 30.64300974828278, average reward of last 50 episodes: 16.31392408083581, average reward of last 100 episodes: 16.66417902456393
+5. max reward 28.870403432158888, average reward of last 50 episodes: 15.8569378493899, average reward of last 100 episodes: 16.84587686676634
+
+Reward ~ -error^2:
+1. max reward 0.0, average reward of last 50 episodes: -0.02389034378932263, average reward of last 100 episodes: -0.024359180502592087
+2. max reward 0.0, average reward of last 50 episodes: -0.020171532266289226, average reward of last 100 episodes: -0.02007861510618227
+3. max reward 0.0, average reward of last 50 episodes: -0.02176624936138112, average reward of last 100 episodes: -0.0210584569813238
+4. max reward 0.0, average reward of last 50 episodes: -0.023932879792168266, average reward of last 100 episodes: -0.022574304204496073
+5. max reward 0.0, average reward of last 50 episodes: -0.021861192813043093, average reward of last 100 episodes: -0.02170666217668884
+
+same negative square reward, but 10e8 steps: max reward 0.0,
+average reward of last 50 episodes: -0.0182473639639923, average reward of last 100 episodes: -0.01850166548210589

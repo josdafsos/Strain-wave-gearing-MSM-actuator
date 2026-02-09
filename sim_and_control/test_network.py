@@ -61,7 +61,7 @@ def run_sim(model, predict_func, model_params, render_environment, enable_plots)
     action = 0
     old_action = 0
     if render_environment:
-        viewer = mujoco_viewer.MujocoViewer(env.environment.model, env.environment.data_description)
+        viewer = mujoco_viewer.MujocoViewer(env.environment.model, env.environment.data)
         viewer.cam.azimuth = 180
         viewer.cam.distance = 0.005
     while True:  # viewer.is_alive:
@@ -214,7 +214,7 @@ def plot_rmse_plots(networks):
         for idx, network in enumerate(networks):
             plot_request = plot_request_list[i]
 
-            data_mat = np.array(network[utils.plot_info_dict[plot_request]["data_description"]])
+            data_mat = np.array(network[utils.plot_info_dict[plot_request]["data"]])
             x_data = data_mat[:, 0]
             y_data = data_mat[:, 1]
 
@@ -241,8 +241,12 @@ def plot_positions(netwrosk):
     legend_fontsize = 22  # 26
     tick_fontsize = 24  # 28
 
-    # network[utils.plot_info_dict[plot_request]["data_description"]]
+    # network[utils.plot_info_dict[plot_request]["data"]]
     labels = ["P + PPO", "Cascade PID", "P + DQN"]
+    if len(labels) < len(networks):
+        labels.extend(['-'] * (len(networks) - len(labels)))
+
+
     plt.figure(figsize=(8, 4))
     for idx, network in enumerate(networks):
         time_vec = network["environment"].environment.simulation_data["time"]
@@ -251,13 +255,15 @@ def plot_positions(netwrosk):
         # Plot results
         # cur_network = networks[i % len(networks)]
         if "postfix" in network.keys():
-            plot_label = network["type"] + " " + network["postfix"]
+            # plot_label = network["type"] + " " + network["postfix"]
+            plot_label = network["postfix"]
         else:
-            plot_label = network["type"]
+            #plot_label = network["type"]
+            plot_label = labels[idx]
         if idx == 0:
-            plt.plot(time_vec, instant_pos_vec, label=labels[idx])  #  linestyle='dotted'
+            plt.plot(time_vec, instant_pos_vec, label=plot_label)  #  linestyle='dotted'
         else:
-            plt.plot(time_vec, instant_pos_vec, label=labels[idx])
+            plt.plot(time_vec, instant_pos_vec, label=plot_label)
         if idx % len(networks) == 0:
             desired_pos_vec = 1000 * np.array(network["reference position"])
             min_len = min(len(time_vec), len(desired_pos_vec))
@@ -285,7 +291,7 @@ def plot_networks_data(networks, plots=[]):
         plt.figure(figsize=(8, 4))
         for network in networks:
             #mse_mat = np.array(network["steady velocity rmse"])
-            data_mat = np.array(network[utils.plot_info_dict[plot_request]["data_description"]])
+            data_mat = np.array(network[utils.plot_info_dict[plot_request]["data"]])
             x_data = data_mat[:, 0]
             y_data = data_mat[:, 1]
             # Plot results
@@ -476,11 +482,11 @@ if __name__ == '__main__':
     # --- manual settings ---
     load_existing_data = False
     data_to_load = 'ppo_sac_dqn_non-filtered_pid_150_steps_6_forces.pickle'
-    save_data = False  # if True data_description obtained during the nun will be saved
+    save_data = False  # if True data obtained during the nun will be saved
     is_position_control = False  # toggles position / velocity control mods, global variable
-    plot_comparisons = False  # enables plotting of combined agents data_description selected at the bottom of the script
+    plot_comparisons = True  # enables plotting of combined agents data selected at the bottom of the script
     render_environment = False  # enables visualization of the simulation
-    enable_individual_plots = True  # separate individual plots will be shown after each experiment for every agent
+    enable_individual_plots = False  # separate individual plots will be shown after each experiment for every agent
 
     # --- agents ---
     # network types: # "neat" "sac" "ppo" "pid"
@@ -489,7 +495,7 @@ if __name__ == '__main__':
     # networks.append({"type": "neat", "file": "neatsave_4khz_70obs_checkpoint-482_fitness_0_12351", "postfix": "4khz"})  # NOTE: USED in publication
     # test 3 SAC looks better than test 8
     # networks.append({"type": "sac", "file": "sac_32_obs_4000_Hz_freq_6000000_network_06_19_25_reward16_4_experiment_3", })  # NOTE: USED IN PUBLICATION
-    networks.append({"type": "ppo", "file": "ppo_32_obs_4000_Hz_freq_280000000_network_06_23_25", "id": 5})  # NOTE: USED IN PUBLICATION
+#    networks.append({"type": "ppo", "file": "ppo_32_obs_4000_Hz_freq_280000000_network_06_23_25", "id": 5})  # NOTE: USED IN PUBLICATION
 
     # NOTE this could be used in the original paper instead of Run 17 DQN
     # networks.append(
@@ -506,6 +512,18 @@ if __name__ == '__main__':
 
     networks.append({"type": "pid", "file": "", "id": 1})  # NOTE: USED IN PUBLICATION
 
+    # reward tests
+    networks.append({"type": "dqn", "file": "dqn_32_obs_4000_Hz_freq_10000000_network_02_01_26_hyperbola", "id": 5, "postfix": "hyperb 1"})
+    networks.append({"type": "dqn", "file": "dqn_32_obs_4000_Hz_freq_10000000_network_02_02_26_hyperbola", "id": 5, "postfix": "hyperb 2"})
+    #networks.append({"type": "dqn", "file": "dqn_32_obs_4000_Hz_freq_10000000_network_02_03_26_hyperbola", "id": 5, "postfix": "hyperb 3"})
+
+    networks.append({"type": "dqn", "file": "dqn_32_obs_4000_Hz_freq_10000000_network_02_04_26_neg_square", "id": 5, "postfix": "-square 1"})
+    networks.append({"type": "dqn", "file": "dqn_32_obs_4000_Hz_freq_10000000_network_02_05_26_neg_square", "id": 5, "postfix": "-square 2"})
+    networks.append({"type": "dqn", "file": "dqn_32_obs_4000_Hz_freq_10000000_network_02_06_26_neg_square", "id": 5, "postfix": "-square 3"})
+    networks.append({"type": "dqn", "file": "dqn_32_obs_4000_Hz_freq_100000000_network_02_07_26_neg_square", "id": 5, "postfix": "-square long"})
+
+
+
     # networks.append(
     #     {"type": "dqn", "file": "zero_vel_best_dqn_32_obs_4000_Hz_freq_158000000_steps",
     #      "postfix": "zero vel, 3x256 layers", "id": 3})
@@ -514,8 +532,8 @@ if __name__ == '__main__':
     #      "postfix": "zero vel 1e6, 3x256 layers", "id": 4})
 
     # Note this one is used in the publication as "constant force trained" use it for comparison
-    # networks.append(
-    #     {"type": "dqn", "file": "run_20_best_dqn_32_obs_4000_Hz_freq_167000000_steps", "id": 4})
+    #networks.append(
+    #     {"type": "dqn", "file": "run_20_best_dqn_32_obs_4000_Hz_freq_167000000_steps", "id": 4, "postfix": "benchmark dqn"})
     # "postfix": "correct zero vel 1e7, 3x256 layers",  NOTE: USED IN PUBLICATION
 
     # pid pid, "pid" = 1
@@ -531,8 +549,8 @@ if __name__ == '__main__':
     position_controllers_list.append({"type": "position pid", "file": "", "id": 5, "kp": 90, "ki": 0, "kd": 0})
 
     # --- reference velocity and position settings ---
-    velocity_range = 0.005  # (0.005, 0.010)
-    # velocity_range = np.linspace(0.001, 0.011, 3)
+    # velocity_range =  (0.002, 0.010)  # 0.005  # Note vel range of 2 or smaller will not allow to compute RMSE plots
+    velocity_range = np.linspace(0.001, 0.011, 100)
     force_range = -2.0
     # force_range = np.linspace(-1, -5, 3)
     position_trajectory = []  # global variable
@@ -547,7 +565,7 @@ if __name__ == '__main__':
     current_position_controller: dict | None = None  # global variable
     velocity_setpoint = None
     external_force = force_range
-    data_folder = 'saved data_description'  # folder to which processed data_description is saved
+    data_folder = 'saved data'  # folder to which processed data is saved
     preprocess_netwroks(networks)
 
     # 'sine_position_dqn_vs_pid.pickle'
@@ -557,7 +575,7 @@ if __name__ == '__main__':
     # '1mm_step_dqn_vs_pid_2_seconds.pickle'
 
     if load_existing_data:
-        print("Loading existing data_description from ", data_to_load)
+        print("Loading existing data from ", data_to_load)
         with open(os.path.join(data_folder, data_to_load), 'rb') as handle:
             networks = pickle.load(handle)
     else:
@@ -567,8 +585,8 @@ if __name__ == '__main__':
                 pickle.dump(networks, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     if plot_comparisons:
-        # plot_rmse_plots(networks)
-        plot_positions(networks)
+        plot_rmse_plots(networks)
+        # plot_positions(networks)
         # plot_networks_data(networks, plots=[#"steady velocity rmse",
         #                                     #"transition velocity rmse",
         #                                     "steady velocity rmse average force",

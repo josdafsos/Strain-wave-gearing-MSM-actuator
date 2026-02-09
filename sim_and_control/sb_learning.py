@@ -31,7 +31,7 @@ def make_env():
     # return gym.make('CartPole-v1')
     return msm_model.MSM_Environment(simulation_time=0.06,
                                      setpoint_limits=(0.003, 0.012),
-                                     # action_discretization_cnt=20,  # used for discrete output agents
+                                     action_discretization_cnt=20,  # used for discrete output agents
                                      enable_action_filtering=False,  # can be set to True for discrete output agents for better performance
                                      #zero_setpoint_probability=0.01,
                                      )
@@ -72,7 +72,7 @@ def plot_rewards_history(vec_env):
 
 def get_dqn_model(model_name, vec_env, device, learning_rate):
     policy_kwargs = dict(
-        net_arch=[512, 512],  # hidden layers with VALUE neurons each
+        net_arch=[256, 256, 256],  # hidden layers with VALUE neurons each
         # activation_fn=torch.nn.ReLU
         activation_fn=torch.nn.ELU
     )
@@ -215,12 +215,12 @@ if __name__ == '__main__':
     # TODO at a new tooth engagement, there is an unrealistic oscillations. Try to adjust sim parameters to avoid this effect
 
     model_name = ""  # leave empty if a new model must be trained
-    model_name = "ppo_32_obs_4000_Hz_freq_210000000_network_06_23_25"
-    model_type = "ppo"  # sac, ppo,dqn
+    # model_name = "ppo_32_obs_4000_Hz_freq_210000000_network_06_23_25"
+    model_type = "dqn"  # sac, ppo,dqn
 
     learning_rate = 1e-6
-    timesteps = int(7e7)
-    num_envs = 30  # Number of parallel environments
+    timesteps = int(1e8)
+    num_envs = 200  # Number of parallel environments
 
     model_dict = {
         "sac": get_sac_model,  # difficult to train, possible to reach controllability with relatively high error
