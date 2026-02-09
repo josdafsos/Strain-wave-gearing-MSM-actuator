@@ -1,0 +1,64 @@
+{
+  "folder": "measurements_251025",
+  "m23": {
+    "unit": "V",
+    "line_width": "1"
+  },
+  "m24": {
+    "unit": "A",
+    "scaler": "1.85",
+    "line_width": "3"
+  },
+  "m25": {
+    "unit": "T",
+    "scaler": "1",
+    "line_width": "3"
+  },
+  "m26": {
+    "unit": "V",
+    "line_width": "1"
+  },
+  "m27": {
+    "unit": "A",
+    "scaler": "1.85",
+    "line_width": "3"
+  },
+  "m28": {
+    "unit": "T",
+    "scaler": "1",
+    "line_width": "3"
+  },
+  "m29": {
+    "unit": "V"
+  },
+  "m30": {
+    "unit": "A",
+    "scaler": "2"
+  },
+  "m31": {
+    "unit": "T",
+    "scaler": "1"
+  },
+  "m32": {
+    "unit": "V"
+  },
+  "m33": {
+    "unit": "A",
+    "scaler": "2"
+  },
+  "m34": {
+    "unit": "T",
+    "scaler": "1"
+  },
+  "m38": {
+    "unit": "V"
+  },
+  "m39": {
+    "unit": "A",
+    "scaler": "2"
+  },
+  "m40": {
+    "unit": "T",
+    "scaler": "1"
+  }
+}

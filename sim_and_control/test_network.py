@@ -121,8 +121,9 @@ def run_sim(model, predict_func, model_params, render_environment, enable_plots)
     result["time"] = env.environment.simulation_data["time"]
     rack_pos = env.environment.simulation_data["rack_pos"]
     desired_position = desired_position[:len(rack_pos)]
-    steady_rack_pos = rack_pos[1000:]
-    steady_desired_position = desired_position[1000:]
+    steady_start_index = 500  # manually set number based on a particular experiment. In future should be computed automatically
+    steady_rack_pos = rack_pos[steady_start_index:]
+    steady_desired_position = desired_position[steady_start_index:]
 
     steady_position_control_error = np.sum( ((steady_desired_position - steady_rack_pos) * 1000) ** 2) / len(steady_rack_pos)
     print(f"Steady RMSE for {label} = {np.sqrt(steady_position_control_error)} ")
@@ -240,6 +241,7 @@ def plot_positions(netwrosk):
     label_fontsize = 30  # for big screen 34
     legend_fontsize = 22  # 26
     tick_fontsize = 24  # 28
+    line_width = 3
 
     # network[utils.plot_info_dict[plot_request]["data"]]
     labels = ["P + PPO", "Cascade PID", "P + DQN"]
@@ -261,14 +263,14 @@ def plot_positions(netwrosk):
             #plot_label = network["type"]
             plot_label = labels[idx]
         if idx == 0:
-            plt.plot(time_vec, instant_pos_vec, label=plot_label)  #  linestyle='dotted'
+            plt.plot(time_vec, instant_pos_vec, label=plot_label, linewidth=line_width)  #  linestyle='dotted'
         else:
-            plt.plot(time_vec, instant_pos_vec, label=plot_label)
+            plt.plot(time_vec, instant_pos_vec, label=plot_label, linewidth=line_width)
         if idx % len(networks) == 0:
             desired_pos_vec = 1000 * np.array(network["reference position"])
             min_len = min(len(time_vec), len(desired_pos_vec))
             plt.plot(time_vec[:min_len], desired_pos_vec[:min_len],
-                     label="Reference Position")
+                     label="Reference", linewidth=line_width)
 
     plt.xlabel("Time (s)", fontsize=label_fontsize)  #, label_font=label_font)
     plt.ylabel("Rack Position (mm)", fontsize=label_fontsize)  # , label_font=label_font)
@@ -494,8 +496,8 @@ if __name__ == '__main__':
     position_controllers_list = []
     # networks.append({"type": "neat", "file": "neatsave_4khz_70obs_checkpoint-482_fitness_0_12351", "postfix": "4khz"})  # NOTE: USED in publication
     # test 3 SAC looks better than test 8
-    # networks.append({"type": "sac", "file": "sac_32_obs_4000_Hz_freq_6000000_network_06_19_25_reward16_4_experiment_3", })  # NOTE: USED IN PUBLICATION
-#    networks.append({"type": "ppo", "file": "ppo_32_obs_4000_Hz_freq_280000000_network_06_23_25", "id": 5})  # NOTE: USED IN PUBLICATION
+    # networks.append({"type": "sac", "file": "publication_sac_32_obs_4000_Hz_freq_6000000_network_06_19_25_reward16_4_experiment_3", })  # NOTE: USED IN PUBLICATION
+    networks.append({"type": "ppo", "file": "publication_ppo_32_obs_4000_Hz_freq_280000000_network_06_23_25", "id": 5})  # NOTE: USED IN PUBLICATION
 
     # NOTE this could be used in the original paper instead of Run 17 DQN
     # networks.append(
@@ -503,7 +505,7 @@ if __name__ == '__main__':
     #      "postfix": "Force optimized, 3x256 layers"})
     # USED IN THE ORIGINAL PAPER:
     # networks.append(
-    #     {"type": "dqn", "file": "run_17_dqn_32_obs_4000_Hz_freq_100000000_network_04_10_25_",
+    #     {"type": "dqn", "file": "variable force trained DQN__run_17_dqn_32_obs_4000_Hz_freq_100000000_network_04_10_25_",
     #      "postfix": "Run 17, 3x256 layers"})  # !!!! NOTE in first control publication referred as "variable force trained DQN" !!!!!
 
     # networks.append(
@@ -532,8 +534,8 @@ if __name__ == '__main__':
     #      "postfix": "zero vel 1e6, 3x256 layers", "id": 4})
 
     # Note this one is used in the publication as "constant force trained" use it for comparison
-    #networks.append(
-    #     {"type": "dqn", "file": "run_20_best_dqn_32_obs_4000_Hz_freq_167000000_steps", "id": 4, "postfix": "benchmark dqn"})
+    networks.append(
+        {"type": "dqn", "file": "constant force trained__run_20_best_dqn_32_obs_4000_Hz_freq_167000000_steps", "id": 4, "postfix": "Publication"})
     # "postfix": "correct zero vel 1e7, 3x256 layers",  NOTE: USED IN PUBLICATION
 
     # pid pid, "pid" = 1
@@ -550,7 +552,7 @@ if __name__ == '__main__':
 
     # --- reference velocity and position settings ---
     # velocity_range =  (0.002, 0.010)  # 0.005  # Note vel range of 2 or smaller will not allow to compute RMSE plots
-    velocity_range = np.linspace(0.001, 0.011, 100)
+    velocity_range = np.linspace(0.001, 0.011, 50)
     force_range = -2.0
     # force_range = np.linspace(-1, -5, 3)
     position_trajectory = []  # global variable

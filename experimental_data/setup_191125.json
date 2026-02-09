@@ -1,0 +1,10 @@
+{
+  "folder": "measurements_191125",
+  "f26": {
+    "unit": "V"
+  },
+  "f67": {
+    "unit": "N",
+    "scaler": "0.5"
+  }
+}

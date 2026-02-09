@@ -1,0 +1,13 @@
+{
+  "folder": "simulation_data",
+  "pos1": {
+    "scaler": "-1000",
+    "unit": "mm",
+    "start_at_zero": 1
+  },
+  "vel1": {
+    "unit": "mm/s",
+    "scaler": "-1000",
+    "time_offset": "0.073"
+  }
+}
