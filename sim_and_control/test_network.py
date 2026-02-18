@@ -486,9 +486,9 @@ if __name__ == '__main__':
     data_to_load = 'ppo_sac_dqn_non-filtered_pid_150_steps_6_forces.pickle'
     save_data = False  # if True data obtained during the nun will be saved
     is_position_control = False  # toggles position / velocity control mods, global variable
-    plot_comparisons = True  # enables plotting of combined agents data selected at the bottom of the script
+    plot_comparisons = False  # enables plotting of combined agents data selected at the bottom of the script
     render_environment = False  # enables visualization of the simulation
-    enable_individual_plots = False  # separate individual plots will be shown after each experiment for every agent
+    enable_individual_plots = True  # separate individual plots will be shown after each experiment for every agent
 
     # --- agents ---
     # network types: # "neat" "sac" "ppo" "pid"
@@ -497,7 +497,7 @@ if __name__ == '__main__':
     # networks.append({"type": "neat", "file": "neatsave_4khz_70obs_checkpoint-482_fitness_0_12351", "postfix": "4khz"})  # NOTE: USED in publication
     # test 3 SAC looks better than test 8
     # networks.append({"type": "sac", "file": "publication_sac_32_obs_4000_Hz_freq_6000000_network_06_19_25_reward16_4_experiment_3", })  # NOTE: USED IN PUBLICATION
-    networks.append({"type": "ppo", "file": "publication_ppo_32_obs_4000_Hz_freq_280000000_network_06_23_25", "id": 5})  # NOTE: USED IN PUBLICATION
+    # networks.append({"type": "ppo", "file": "publication_ppo_32_obs_4000_Hz_freq_280000000_network_06_23_25", "id": 5})  # NOTE: USED IN PUBLICATION
 
     # NOTE this could be used in the original paper instead of Run 17 DQN
     # networks.append(
@@ -512,17 +512,17 @@ if __name__ == '__main__':
     #     {"type": "dqn", "file": "semistable_outperformance_dqn_32_obs_4000_Hz_freq_97000000_steps_new_new",
     #      "postfix": "28_03, 3x256 layers", "id": 2})
 
-    networks.append({"type": "pid", "file": "", "id": 1})  # NOTE: USED IN PUBLICATION
+    #networks.append({"type": "pid", "file": "", "id": 1})  # NOTE: USED IN PUBLICATION
 
     # reward tests
-    networks.append({"type": "dqn", "file": "dqn_32_obs_4000_Hz_freq_10000000_network_02_01_26_hyperbola", "id": 5, "postfix": "hyperb 1"})
-    networks.append({"type": "dqn", "file": "dqn_32_obs_4000_Hz_freq_10000000_network_02_02_26_hyperbola", "id": 5, "postfix": "hyperb 2"})
-    #networks.append({"type": "dqn", "file": "dqn_32_obs_4000_Hz_freq_10000000_network_02_03_26_hyperbola", "id": 5, "postfix": "hyperb 3"})
+    # networks.append({"type": "dqn", "file": "dqn_32_obs_4000_Hz_freq_10000000_network_02_01_26_hyperbola", "id": 5, "postfix": "hyperb 1"})
+    # networks.append({"type": "dqn", "file": "dqn_32_obs_4000_Hz_freq_10000000_network_02_02_26_hyperbola", "id": 5, "postfix": "hyperb 2"})
+    # networks.append({"type": "dqn", "file": "dqn_32_obs_4000_Hz_freq_10000000_network_02_03_26_hyperbola", "id": 5, "postfix": "hyperb 3"})
 
-    networks.append({"type": "dqn", "file": "dqn_32_obs_4000_Hz_freq_10000000_network_02_04_26_neg_square", "id": 5, "postfix": "-square 1"})
-    networks.append({"type": "dqn", "file": "dqn_32_obs_4000_Hz_freq_10000000_network_02_05_26_neg_square", "id": 5, "postfix": "-square 2"})
-    networks.append({"type": "dqn", "file": "dqn_32_obs_4000_Hz_freq_10000000_network_02_06_26_neg_square", "id": 5, "postfix": "-square 3"})
-    networks.append({"type": "dqn", "file": "dqn_32_obs_4000_Hz_freq_100000000_network_02_07_26_neg_square", "id": 5, "postfix": "-square long"})
+    # networks.append({"type": "dqn", "file": "dqn_32_obs_4000_Hz_freq_10000000_network_02_04_26_neg_square", "id": 5, "postfix": "-square 1"})
+    # networks.append({"type": "dqn", "file": "dqn_32_obs_4000_Hz_freq_10000000_network_02_05_26_neg_square", "id": 5, "postfix": "-square 2"})
+    # networks.append({"type": "dqn", "file": "dqn_32_obs_4000_Hz_freq_10000000_network_02_06_26_neg_square", "id": 5, "postfix": "-square 3"})
+    # networks.append({"type": "dqn", "file": "dqn_32_obs_4000_Hz_freq_100000000_network_02_07_26_neg_square", "id": 5, "postfix": "-square long"})
 
 
 
@@ -534,8 +534,8 @@ if __name__ == '__main__':
     #      "postfix": "zero vel 1e6, 3x256 layers", "id": 4})
 
     # Note this one is used in the publication as "constant force trained" use it for comparison
-    networks.append(
-        {"type": "dqn", "file": "constant force trained__run_20_best_dqn_32_obs_4000_Hz_freq_167000000_steps", "id": 4, "postfix": "Publication"})
+    # networks.append(
+    #    {"type": "dqn", "file": "constant force trained__run_20_best_dqn_32_obs_4000_Hz_freq_167000000_steps", "id": 4, "postfix": "Publication"})
     # "postfix": "correct zero vel 1e7, 3x256 layers",  NOTE: USED IN PUBLICATION
 
     # pid pid, "pid" = 1
@@ -551,8 +551,8 @@ if __name__ == '__main__':
     position_controllers_list.append({"type": "position pid", "file": "", "id": 5, "kp": 90, "ki": 0, "kd": 0})
 
     # --- reference velocity and position settings ---
-    # velocity_range =  (0.002, 0.010)  # 0.005  # Note vel range of 2 or smaller will not allow to compute RMSE plots
-    velocity_range = np.linspace(0.001, 0.011, 50)
+    velocity_range =  0.005  # (0.002, 0.010)  #  Note vel range of 2 or smaller will not allow to compute RMSE plots
+    # velocity_range = np.linspace(0.001, 0.011, 50)
     force_range = -2.0
     # force_range = np.linspace(-1, -5, 3)
     position_trajectory = []  # global variable
